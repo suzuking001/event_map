@@ -22,6 +22,7 @@
   const dateClear = document.getElementById("date-clear");
   const dateRangeHint = document.getElementById("date-range-hint");
   const dateInfo = document.getElementById("date-info");
+  const searchInput = document.getElementById("search-input");
   const categoryFilters = document.getElementById("category-filters");
   const categoryAll = document.getElementById("category-all");
   const categoryNone = document.getElementById("category-none");
@@ -119,6 +120,38 @@
     if (!raw) return ["未分類"];
     const parts = raw.split(/[、/／・]/).map(item => item.trim()).filter(Boolean);
     return parts.length ? parts : [raw];
+  };
+
+  const buildSearchText = fields => {
+    const parts = [
+      fields["イベント名"],
+      fields["イベント名_カナ"],
+      fields["イベント名_英語"],
+      fields["場所名称"],
+      fields["説明"],
+      fields["住所"],
+      fields["主催者"],
+      fields["カテゴリー"],
+      fields["区"],
+      fields["備考"],
+    ]
+      .filter(Boolean)
+      .map(value => String(value).trim())
+      .filter(Boolean);
+    return parts.join(" ").toLowerCase();
+  };
+
+  const debounce = (fn, waitMs) => {
+    let timer = null;
+    return (...args) => {
+      if (timer) {
+        clearTimeout(timer);
+      }
+      timer = setTimeout(() => {
+        timer = null;
+        fn(...args);
+      }, waitMs);
+    };
   };
 
   const buildDetailsHtml = (event, headers) => {
@@ -377,6 +410,7 @@
       const baseColor = getCategoryColor(primaryCategory);
       const strokeColor = adjustColor(baseColor, -24);
       const fillColor = adjustColor(baseColor, 60);
+      const searchText = buildSearchText(fields);
 
       const startValue = parseDateValue(startDate);
       const endValue = parseDateValue(endDate || startDate);
@@ -408,6 +442,7 @@
         primaryCategory,
         strokeColor,
         fillColor,
+        searchText,
         startValue,
         endValue: endValue || startValue,
         fields,
@@ -579,13 +614,18 @@
 
     const applyFilters = () => {
       const selectedCategories = getSelectedCategories();
+      const keyword = searchInput ? searchInput.value.trim().toLowerCase() : "";
+      const keywordParts = keyword ? keyword.split(/\s+/).filter(Boolean) : [];
       let visible = 0;
       markers.forEach(item => {
         const categoryMatch = selectedCategories.size === 0
           ? false
           : item.event.categories.some(cat => selectedCategories.has(cat));
         const dateMatch = matchesDateRange(item.event);
-        const shouldShow = categoryMatch && dateMatch;
+        const keywordMatch = keywordParts.length === 0
+          ? true
+          : keywordParts.every(part => item.event.searchText.includes(part));
+        const shouldShow = categoryMatch && dateMatch && keywordMatch;
         if (shouldShow) {
           if (!map.hasLayer(item.marker)) {
             item.marker.addTo(map);
@@ -632,6 +672,10 @@
     }
     if (categoryFilters) {
       categoryFilters.addEventListener("change", applyFilters);
+    }
+    if (searchInput) {
+      const debouncedApply = debounce(applyFilters, 250);
+      searchInput.addEventListener("input", debouncedApply);
     }
     if (categoryAll) {
       categoryAll.addEventListener("click", () => {
