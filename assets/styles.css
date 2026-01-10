@@ -65,7 +65,11 @@
   line-height: 1.2;
   padding: 2px 6px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
-  white-space: nowrap;
+  white-space: normal;
+  max-width: 180px;
+  min-width: 120px;
+  text-align: center;
+  overflow-wrap: anywhere;
   transition: opacity 0.2s ease;
 }
 .marker-label.leaflet-tooltip {
@@ -217,7 +221,7 @@
   top: 0;
   left: 0;
   height: 100%;
-  width: 280px;
+  width: 320px;
   background: rgba(255, 255, 255, 0.7);
   box-shadow: 8px 0 24px rgba(15, 23, 42, 0.18);
   backdrop-filter: blur(10px);
@@ -245,6 +249,8 @@
 .menu-header {
   font-size: 16px;
   font-weight: 700;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .menu-catch {
   margin-top: 4px;
@@ -257,9 +263,15 @@
   line-height: 1.5;
   display: grid;
   gap: 6px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .menu-catch strong {
   font-weight: 700;
+}
+.menu-catch a {
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .menu-close {
   width: 30px;
@@ -281,6 +293,7 @@
   font-size: 12px;
   color: #555;
   margin-bottom: 6px;
+  overflow-wrap: anywhere;
 }
 .menu-input {
   width: 100%;
@@ -371,10 +384,14 @@
   line-height: 1.4;
   display: grid;
   gap: 4px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .menu-license a {
   color: #2563eb;
   text-decoration: none;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .menu-license a:hover {
   text-decoration: underline;
@@ -545,6 +562,8 @@
   .marker-label {
     font-size: 10px;
     padding: 2px 5px;
+    max-width: 140px;
+    min-width: 100px;
   }
   .marker-label .label-status {
     font-size: 9px;
@@ -597,13 +616,22 @@
 }
 .menu-option {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   margin-bottom: 6px;
   font-size: 13px;
+  min-width: 0;
+}
+.category-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid #cbd5f5;
+  box-sizing: border-box;
+  flex: 0 0 auto;
 }
 .menu-option input {
-  margin: 0;
+  margin: 2px 0 0;
 }
 .menu-tag {
   display: inline-block;
@@ -612,6 +640,10 @@
   border: 1px solid #c8c8c8;
   background: #ffffff;
   font-size: 12px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  min-width: 0;
 }
 .menu-tag-private {
   background: #d9efff;

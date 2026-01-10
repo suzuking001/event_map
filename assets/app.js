@@ -29,7 +29,58 @@
   const visibleCount = document.getElementById("visible-count");
   const totalCount = document.getElementById("total-count");
 
+  const CATEGORY_PALETTE = [
+    "#2563eb",
+    "#10b981",
+    "#f97316",
+    "#ef4444",
+    "#0ea5e9",
+    "#22c55e",
+    "#f59e0b",
+    "#14b8a6",
+    "#e11d48",
+    "#84cc16",
+  ];
+
   const escapeValue = value => escapeHtml(value == null ? "" : value);
+
+  const clampColor = value => Math.max(0, Math.min(255, value));
+
+  const adjustColor = (hex, amount) => {
+    if (!hex || hex[0] !== "#" || hex.length !== 7) {
+      return hex;
+    }
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    const next = value =>
+      clampColor(value + amount).toString(16).padStart(2, "0");
+    return `#${next(r)}${next(g)}${next(b)}`;
+  };
+
+  const hashString = value => {
+    let hash = 0;
+    for (let i = 0; i < value.length; i += 1) {
+      hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
+    }
+    return hash;
+  };
+
+  const categoryColorMap = new Map();
+  const getCategoryColor = category => {
+    if (!category) {
+      return "#64748b";
+    }
+    if (categoryColorMap.has(category)) {
+      return categoryColorMap.get(category);
+    }
+    const color =
+      category === "未分類"
+        ? "#6b7280"
+        : CATEGORY_PALETTE[hashString(category) % CATEGORY_PALETTE.length];
+    categoryColorMap.set(category, color);
+    return color;
+  };
 
   const parseDateValue = value => {
     if (!value) return null;
@@ -253,11 +304,18 @@
       input.value = category;
       input.checked = true;
 
+      const swatch = document.createElement("span");
+      swatch.className = "category-swatch";
+      const baseColor = getCategoryColor(category);
+      swatch.style.backgroundColor = baseColor;
+      swatch.style.borderColor = adjustColor(baseColor, -24);
+
       const span = document.createElement("span");
       span.className = "menu-tag";
       span.textContent = category;
 
       label.appendChild(input);
+      label.appendChild(swatch);
       label.appendChild(span);
       categoryFilters.appendChild(label);
     });
@@ -315,6 +373,10 @@
 
       const categories = normalizeCategories(fields["カテゴリー"]);
       categories.forEach(cat => categorySet.add(cat));
+      const primaryCategory = categories[0] || "未分類";
+      const baseColor = getCategoryColor(primaryCategory);
+      const strokeColor = adjustColor(baseColor, -24);
+      const fillColor = adjustColor(baseColor, 60);
 
       const startValue = parseDateValue(startDate);
       const endValue = parseDateValue(endDate || startDate);
@@ -343,6 +405,9 @@
         lat,
         lon,
         categories,
+        primaryCategory,
+        strokeColor,
+        fillColor,
         startValue,
         endValue: endValue || startValue,
         fields,
@@ -388,7 +453,6 @@
       '<a href="https://leafletjs.com/" target="_blank" rel="noopener">Leaflet</a> (MIT)'
     );
     map.attributionControl.setPosition("topright");
-    map.attributionControl.addAttribution(DATASET_ATTRIBUTION);
 
     const controlPosition = window.innerWidth <= 768 ? "topleft" : "bottomright";
     L.control.zoom({ position: controlPosition }).addTo(map);
@@ -425,6 +489,8 @@
     });
 
     const markerRenderer = L.canvas({ padding: 0.5 });
+    const LABEL_MIN_ZOOM = 11;
+    const LABEL_FADE_MAX_ZOOM = 13;
     const markers = events.map(event => {
       const dateRange = formatDateRange(event.startDate, event.endDate);
       const labelHtml = `
@@ -433,8 +499,8 @@
       `;
       const marker = L.circleMarker([event.lat, event.lon], {
         radius: 8,
-        color: "#1d4ed8",
-        fillColor: "#93c5fd",
+        color: event.strokeColor,
+        fillColor: event.fillColor,
         fillOpacity: 0.9,
         weight: 2,
         renderer: markerRenderer,
@@ -455,6 +521,33 @@
 
       return { marker, event };
     });
+
+    const updateLabelOpacity = () => {
+      const zoom = map.getZoom();
+      let opacity = 1;
+      if (zoom <= LABEL_MIN_ZOOM) {
+        opacity = 0;
+      } else if (zoom >= LABEL_FADE_MAX_ZOOM) {
+        opacity = 1;
+      } else {
+        opacity = (zoom - LABEL_MIN_ZOOM) / (LABEL_FADE_MAX_ZOOM - LABEL_MIN_ZOOM);
+      }
+      markers.forEach(item => {
+        if (!map.hasLayer(item.marker)) {
+          return;
+        }
+        const tooltip = item.marker.getTooltip();
+        const el = tooltip ? tooltip.getElement() : null;
+        if (!el) {
+          return;
+        }
+        el.style.opacity = String(opacity);
+        el.style.pointerEvents = opacity < 0.2 ? "none" : "auto";
+      });
+    };
+
+    map.on("zoomend", updateLabelOpacity);
+    map.whenReady(updateLabelOpacity);
 
     if (totalCount) {
       totalCount.textContent = `${markers.length}`;
@@ -554,6 +647,7 @@
     }
 
     applyFilters();
+    updateLabelOpacity();
   }
 
   main().catch(error => {
