@@ -160,6 +160,9 @@
     const urlButton = url
       ? `<a class="details-link-button" href="${escapeValue(url)}" target="_blank" rel="noopener">WEBページを開く</a>`
       : `<button class="details-link-button" type="button" disabled>WEBページなし</button>`;
+    const searchQuery = `浜松市 ${event.name || "イベント"}`;
+    const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`;
+    const searchButton = `<a class="details-link-button" href="${searchUrl}" target="_blank" rel="noopener">Googleで検索</a>`;
     const dateRange = formatDateRange(event.startDate, event.endDate);
     const timeRange = formatTimeRange(event.startTime, event.endTime);
     const categoryText = event.categories.join(" / ");
@@ -198,7 +201,7 @@
       .join("");
 
     return `
-      <div class="details-actions">${urlButton}</div>
+      <div class="details-actions">${urlButton}${searchButton}</div>
       ${summaryHtml}
       <div class="details-grid">${rowsHtml}</div>
     `;
@@ -605,8 +608,14 @@
             todayValue >= minDateValue &&
             todayValue <= maxDateValue
           ) {
+            const endDate = new Date(today);
+            endDate.setDate(endDate.getDate() + 7);
+            const endText = formatDate(endDate);
+            const endValue = parseDateValue(endText);
+            const endWithinRange =
+              endValue != null && endValue <= maxDateValue;
             dateStart.value = todayText;
-            dateEnd.value = todayText;
+            dateEnd.value = endWithinRange ? endText : dateEnd.max;
           }
         }
       } else if (dateRangeHint) {
