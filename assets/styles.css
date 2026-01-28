@@ -477,6 +477,16 @@
   gap: 8px;
   flex-wrap: wrap;
   margin-bottom: 12px;
+  align-items: center;
+}
+.details-favicon {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: #fff;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.12);
+  flex: 0 0 auto;
 }
 .details-link-button {
   border: 1px solid rgba(37, 99, 235, 0.4);

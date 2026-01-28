@@ -116,6 +116,28 @@
     return startText || endText || "";
   };
 
+  const normalizeUrl = raw => {
+    const trimmed = raw ? String(raw).trim() : "";
+    if (!trimmed) return "";
+    if (/^https?:\/\//i.test(trimmed)) {
+      return trimmed;
+    }
+    return `https://${trimmed}`;
+  };
+
+  const getFaviconUrl = rawUrl => {
+    const normalized = normalizeUrl(rawUrl);
+    if (!normalized) return "";
+    try {
+      const url = new URL(normalized);
+      return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(
+        url.hostname
+      )}&sz=128`;
+    } catch (error) {
+      return "";
+    }
+  };
+
   const normalizeCategories = value => {
     const raw = value ? String(value).trim() : "";
     if (!raw) return ["未分類"];
@@ -156,10 +178,15 @@
   };
 
   const buildDetailsHtml = (event, headers) => {
-    const url = event.fields.URL || "";
-    const urlButton = url
-      ? `<a class="details-link-button" href="${escapeValue(url)}" target="_blank" rel="noopener">WEBページを開く</a>`
+    const rawUrl = event.fields.URL || "";
+    const normalizedUrl = normalizeUrl(rawUrl);
+    const urlButton = normalizedUrl
+      ? `<a class="details-link-button" href="${escapeValue(normalizedUrl)}" target="_blank" rel="noopener">WEBページを開く</a>`
       : `<button class="details-link-button" type="button" disabled>WEBページなし</button>`;
+    const faviconUrl = getFaviconUrl(rawUrl);
+    const faviconHtml = faviconUrl
+      ? `<img class="details-favicon" src="${escapeValue(faviconUrl)}" alt="WEBサイトのアイコン" loading="lazy" referrerpolicy="no-referrer">`
+      : "";
     const searchQuery = `浜松市 ${event.name || "イベント"}`;
     const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`;
     const searchButton = `<a class="details-link-button" href="${searchUrl}" target="_blank" rel="noopener">Googleで検索</a>`;
@@ -201,7 +228,7 @@
       .join("");
 
     return `
-      <div class="details-actions">${urlButton}${searchButton}</div>
+      <div class="details-actions">${faviconHtml}${urlButton}${searchButton}</div>
       ${summaryHtml}
       <div class="details-grid">${rowsHtml}</div>
     `;
