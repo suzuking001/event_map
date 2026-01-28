@@ -1,5 +1,25 @@
 ﻿html, body { height: 100%; margin: 0; }
 #map { height: 100vh; width: 100%; }
+.loading {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 1004;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.82);
+  color: #f8fafc;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.25);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+.loading.open {
+  opacity: 1;
+}
 
 .popup {
   font-size: 12px;

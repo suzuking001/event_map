@@ -16,6 +16,7 @@
   const aboutModal = document.getElementById("about-modal");
   const aboutClose = document.getElementById("about-close");
   const aboutButton = document.getElementById("about-button");
+  const loading = document.getElementById("loading");
 
   const dateStart = document.getElementById("date-start");
   const dateEnd = document.getElementById("date-end");
@@ -250,6 +251,74 @@
     aboutModal.inert = true;
   };
 
+  const setLoading = (isOpen, message = "データを読み込んでいます...") => {
+    if (!loading) {
+      return;
+    }
+    loading.textContent = message;
+    loading.classList.toggle("open", isOpen);
+    loading.setAttribute("aria-hidden", String(!isOpen));
+  };
+
+  const buildWorkerId = () => {
+    if (window.crypto && window.crypto.randomUUID) {
+      return window.crypto.randomUUID();
+    }
+    return `csv-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  };
+
+  const fetchCSVViaWorker = (url, encoding = "shift-jis") =>
+    new Promise((resolve, reject) => {
+      if (!window.Worker) {
+        reject(new Error("Worker not supported"));
+        return;
+      }
+      const worker = new Worker("assets/js/event-csv-worker.js");
+      const requestId = buildWorkerId();
+
+      const cleanup = () => {
+        worker.removeEventListener("message", handleMessage);
+        worker.removeEventListener("error", handleError);
+        worker.removeEventListener("messageerror", handleError);
+        worker.terminate();
+      };
+
+      const handleMessage = event => {
+        const data = event.data || {};
+        if (data.id !== requestId) {
+          return;
+        }
+        cleanup();
+        if (data.ok) {
+          resolve(data.payload);
+        } else {
+          reject(new Error(data.error || "Worker failed"));
+        }
+      };
+
+      const handleError = error => {
+        cleanup();
+        reject(error);
+      };
+
+      worker.addEventListener("message", handleMessage);
+      worker.addEventListener("error", handleError);
+      worker.addEventListener("messageerror", handleError);
+      worker.postMessage({ id: requestId, url, encoding });
+    });
+
+  const fetchAndParseEvents = async () => {
+    if (window.Worker) {
+      try {
+        return await fetchCSVViaWorker(EVENT_CSV_URL);
+      } catch (error) {
+        console.warn("CSV worker failed. Falling back to main thread.", error);
+      }
+    }
+    const csvText = await fetchCSV(EVENT_CSV_URL);
+    return parseCSV(csvText);
+  };
+
   const setupMenuControls = () => {
     menuToggle = document.getElementById("menu-toggle");
     const menuBackdrop = document.getElementById("menu-backdrop");
@@ -380,9 +449,68 @@
 
   async function main() {
     setupMenuControls();
+    if (dateRangeHint) {
+      dateRangeHint.textContent = "データを読み込み中...";
+    }
+    setLoading(true);
 
-    const csvText = await fetchCSV(EVENT_CSV_URL);
-    const { headers, rows } = parseCSV(csvText);
+    const map = L.map("map", {
+      zoomControl: false,
+      attributionControl: true,
+      preferCanvas: true,
+    }).setView([34.7108, 137.7266], 12);
+
+    L.tileLayer(TILE_URL, {
+      maxZoom: 19,
+      attribution: TILE_ATTRIBUTION,
+    }).addTo(map);
+
+    map.attributionControl.setPrefix(
+      '<a href="https://leafletjs.com/" target="_blank" rel="noopener">Leaflet</a> (MIT)'
+    );
+    map.attributionControl.setPosition("topright");
+
+    const controlPosition = window.innerWidth <= 768 ? "topleft" : "bottomright";
+    L.control.zoom({ position: controlPosition }).addTo(map);
+
+    const locateControl = L.control({ position: controlPosition });
+    locateControl.onAdd = () => {
+      const container = L.DomUtil.create("div", "leaflet-control leaflet-control-locate");
+      const button = L.DomUtil.create("button", "locate-button", container);
+      button.type = "button";
+      button.title = "現在地を表示";
+      button.setAttribute("aria-label", "現在地を表示");
+      button.innerHTML = `
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="12" r="4"></circle>
+          <line x1="12" y1="2" x2="12" y2="6"></line>
+          <line x1="12" y1="18" x2="12" y2="22"></line>
+          <line x1="2" y1="12" x2="6" y2="12"></line>
+          <line x1="18" y1="12" x2="22" y2="12"></line>
+        </svg>
+      `;
+
+      L.DomEvent.disableClickPropagation(container);
+      L.DomEvent.on(button, "click", event => {
+        L.DomEvent.stop(event);
+        map.locate({ setView: true, maxZoom: 16 });
+      });
+      return container;
+    };
+    locateControl.addTo(map);
+
+    map.on("locationerror", event => {
+      console.warn("位置情報の取得に失敗しました。", event.message);
+      alert("位置情報の取得に失敗しました。ブラウザの許可設定をご確認ください。");
+    });
+
+    let headers = [];
+    let rows = [];
+    try {
+      ({ headers, rows } = await fetchAndParseEvents());
+    } finally {
+      setLoading(false);
+    }
 
     const events = [];
     const categorySet = new Set();
@@ -468,65 +596,28 @@
         if (dateRangeHint) {
           dateRangeHint.textContent = `確認可能期間: ${dateStart.min} ～ ${dateEnd.max}`;
         }
+        if (!dateStart.value && !dateEnd.value) {
+          const today = new Date();
+          const todayText = formatDate(today);
+          const todayValue = parseDateValue(todayText);
+          if (
+            todayValue != null &&
+            todayValue >= minDateValue &&
+            todayValue <= maxDateValue
+          ) {
+            dateStart.value = todayText;
+            dateEnd.value = todayText;
+          }
+        }
       } else if (dateRangeHint) {
         dateRangeHint.textContent = "日付データがありません。";
       }
     }
 
-    const map = L.map("map", {
-      zoomControl: false,
-      attributionControl: true,
-      preferCanvas: true,
-    }).setView([34.7108, 137.7266], 12);
-
-    L.tileLayer(TILE_URL, {
-      maxZoom: 19,
-      attribution: TILE_ATTRIBUTION,
-    }).addTo(map);
-
-    map.attributionControl.setPrefix(
-      '<a href="https://leafletjs.com/" target="_blank" rel="noopener">Leaflet</a> (MIT)'
-    );
-    map.attributionControl.setPosition("topright");
-
-    const controlPosition = window.innerWidth <= 768 ? "topleft" : "bottomright";
-    L.control.zoom({ position: controlPosition }).addTo(map);
-
-    const locateControl = L.control({ position: controlPosition });
-    locateControl.onAdd = () => {
-      const container = L.DomUtil.create("div", "leaflet-control leaflet-control-locate");
-      const button = L.DomUtil.create("button", "locate-button", container);
-      button.type = "button";
-      button.title = "現在地を表示";
-      button.setAttribute("aria-label", "現在地を表示");
-      button.innerHTML = `
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="12" cy="12" r="4"></circle>
-          <line x1="12" y1="2" x2="12" y2="6"></line>
-          <line x1="12" y1="18" x2="12" y2="22"></line>
-          <line x1="2" y1="12" x2="6" y2="12"></line>
-          <line x1="18" y1="12" x2="22" y2="12"></line>
-        </svg>
-      `;
-
-      L.DomEvent.disableClickPropagation(container);
-      L.DomEvent.on(button, "click", event => {
-        L.DomEvent.stop(event);
-        map.locate({ setView: true, maxZoom: 16 });
-      });
-      return container;
-    };
-    locateControl.addTo(map);
-
-    map.on("locationerror", event => {
-      console.warn("位置情報の取得に失敗しました。", event.message);
-      alert("位置情報の取得に失敗しました。ブラウザの許可設定をご確認ください。");
-    });
-
     const markerRenderer = L.canvas({ padding: 0.5 });
     const LABEL_MIN_ZOOM = 11;
     const LABEL_FADE_MAX_ZOOM = 13;
-    const markers = events.map(event => {
+    const createMarkerForEvent = event => {
       const dateRange = formatDateRange(event.startDate, event.endDate);
       const labelHtml = `
         <span class="label-title">${escapeValue(event.name)}</span>
@@ -554,8 +645,10 @@
         setDetailsOpen(true, detailsHtml, event.name);
       });
 
-      return { marker, event };
-    });
+      return marker;
+    };
+
+    const markers = events.map(event => ({ marker: null, event }));
 
     const updateLabelOpacity = () => {
       const zoom = map.getZoom();
@@ -568,7 +661,7 @@
         opacity = (zoom - LABEL_MIN_ZOOM) / (LABEL_FADE_MAX_ZOOM - LABEL_MIN_ZOOM);
       }
       markers.forEach(item => {
-        if (!map.hasLayer(item.marker)) {
+        if (!item.marker || !map.hasLayer(item.marker)) {
           return;
         }
         const tooltip = item.marker.getTooltip();
@@ -614,9 +707,28 @@
 
     const applyFilters = () => {
       const selectedCategories = getSelectedCategories();
+      const hasDateFilter = Boolean(
+        (dateStart && dateStart.value) || (dateEnd && dateEnd.value)
+      );
       const keyword = searchInput ? searchInput.value.trim().toLowerCase() : "";
       const keywordParts = keyword ? keyword.split(/\s+/).filter(Boolean) : [];
       let visible = 0;
+
+      if (!hasDateFilter) {
+        markers.forEach(item => {
+          if (item.marker && map.hasLayer(item.marker)) {
+            map.removeLayer(item.marker);
+          }
+        });
+        if (visibleCount) {
+          visibleCount.textContent = "0";
+        }
+        if (dateInfo) {
+          dateInfo.textContent = "期間を選択すると表示されます";
+        }
+        return;
+      }
+
       markers.forEach(item => {
         const categoryMatch = selectedCategories.size === 0
           ? false
@@ -627,11 +739,13 @@
           : keywordParts.every(part => item.event.searchText.includes(part));
         const shouldShow = categoryMatch && dateMatch && keywordMatch;
         if (shouldShow) {
-          if (!map.hasLayer(item.marker)) {
+          if (!item.marker) {
+            item.marker = createMarkerForEvent(item.event);
+          } else if (!map.hasLayer(item.marker)) {
             item.marker.addTo(map);
           }
           visible += 1;
-        } else if (map.hasLayer(item.marker)) {
+        } else if (item.marker && map.hasLayer(item.marker)) {
           map.removeLayer(item.marker);
         }
       });

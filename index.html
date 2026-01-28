@@ -87,6 +87,7 @@
       </div>
     </div>
   </aside>
+  <div id="loading" class="loading" aria-live="polite" aria-hidden="true"></div>
   <div id="map"></div>
   <div id="details-modal" class="details-modal" aria-hidden="true" role="dialog" aria-label="イベント詳細">
     <div class="details-container" role="document">
@@ -129,5 +130,12 @@
   <script charset="UTF-8" src="assets/js/csv.js"></script>
   <script charset="UTF-8" src="assets/js/utils.js"></script>
   <script charset="UTF-8" src="assets/app.js"></script>
+  <script>
+    if ("serviceWorker" in navigator && location.protocol !== "file:") {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("sw.js").catch(() => {});
+      });
+    }
+  </script>
 </body>
 </html>
