@@ -21,60 +21,6 @@
   opacity: 1;
 }
 
-.popup {
-  font-size: 12px;
-  line-height: 1.4;
-}
-.popup .title {
-  font-size: 14px;
-  font-weight: 700;
-  margin-bottom: 4px;
-}
-.popup .meta {
-  color: #555;
-  margin-bottom: 4px;
-}
-.popup table {
-  width: 100%;
-  border-collapse: collapse;
-}
-.popup th, .popup td {
-  border: 1px solid #d0d0d0;
-  padding: 2px 4px;
-  text-align: center;
-  white-space: nowrap;
-}
-.popup th:first-child,
-.popup td:first-child {
-  text-align: left;
-}
-.popup .section {
-  margin-top: 6px;
-}
-.popup-actions {
-  margin-top: 8px;
-}
-.popup-link {
-  display: inline-block;
-  padding: 6px 10px;
-  border-radius: 6px;
-  background: #f1f5f9;
-  border: 1px solid #cbd5f5;
-  color: #2563eb;
-  font-size: 12px;
-  text-decoration: none;
-}
-.popup-link:hover {
-  filter: brightness(0.98);
-}
-.popup .availability-wrap {
-  max-height: 240px;
-  overflow: auto;
-  border: 1px solid #e0e0e0;
-}
-.popup .empty {
-  color: #888;
-}
 .marker-label {
   background: rgba(255, 255, 255, 0.9);
   border: 1px solid #c8c8c8;
@@ -101,53 +47,12 @@
   display: block;
   font-weight: 700;
 }
-.marker-label .label-status {
-  display: block;
-  font-size: 10px;
-  font-weight: 500;
-  margin-top: 2px;
-}
 .marker-label .label-meta {
   display: block;
   font-size: 10px;
   font-weight: 500;
   margin-top: 2px;
   color: #374151;
-}
-.marker-label .label-status span {
-  display: inline-block;
-  margin-right: 4px;
-}
-.marker-label .label-empty {
-  color: #666;
-}
-.marker-label-private {
-  background: #d9efff;
-  border-color: #b7c9dc;
-}
-.marker-label-municipal {
-  background: #fff3c2;
-  border-color: #e2d3a7;
-}
-.marker-label-small {
-  background: #dff5d6;
-  border-color: #bdd9b3;
-}
-.marker-label-onsite {
-  background: #f3e5d0;
-  border-color: #d9c3a7;
-}
-.marker-label-company {
-  background: #efe3ff;
-  border-color: #d6c2f0;
-}
-.marker-label-unlicensed {
-  background: #ffe0ea;
-  border-color: #e6c0cc;
-}
-.marker-label-unlicensed-limited {
-  background: #e5e7eb;
-  border-color: #d1d5db;
 }
 .marker-label-event {
   background: rgba(255, 255, 255, 0.92);
@@ -370,23 +275,6 @@
   gap: 6px;
   align-items: baseline;
 }
-.status-legend {
-  display: inline-block;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  border: 2px solid transparent;
-  flex: 0 0 auto;
-  margin-top: 2px;
-}
-.status-legend-available {
-  background: #4ade80;
-  border-color: #16a34a;
-}
-.status-legend-full {
-  background: #f87171;
-  border-color: #dc2626;
-}
 .menu-note {
   margin-top: auto;
   font-size: 12px;
@@ -530,9 +418,6 @@
   word-break: break-word;
   line-height: 1.5;
 }
-.details-body .popup {
-  font-size: 13px;
-}
 @media (max-width: 768px) {
   .side-menu {
     width: 100vw;
@@ -595,9 +480,6 @@
     max-width: 140px;
     min-width: 100px;
   }
-  .marker-label .label-status {
-    font-size: 9px;
-  }
   .detail-row {
     grid-template-columns: 1fr;
   }
@@ -607,34 +489,6 @@
   .details-link-button {
     width: 100%;
   }
-  .leaflet-popup-content {
-    max-height: 60vh;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-  .leaflet-popup-close-button {
-    width: 32px;
-    height: 32px;
-    font-size: 20px;
-    line-height: 32px;
-  }
-}
-.range-label {
-  font-size: 12px;
-  font-weight: 600;
-  opacity: 0.7;
-}
-.range-label.leaflet-tooltip {
-  background: transparent;
-  border: none;
-  box-shadow: none;
-  padding: 0;
-}
-.range-label-2km {
-  color: #f87171;
-}
-.range-label-5km {
-  color: #ef4444;
 }
 .menu-section {
   margin-top: 14px;
@@ -674,34 +528,6 @@
   overflow-wrap: anywhere;
   word-break: break-word;
   min-width: 0;
-}
-.menu-tag-private {
-  background: #d9efff;
-  border-color: #b7c9dc;
-}
-.menu-tag-municipal {
-  background: #fff3c2;
-  border-color: #e2d3a7;
-}
-.menu-tag-small {
-  background: #dff5d6;
-  border-color: #bdd9b3;
-}
-.menu-tag-onsite {
-  background: #f3e5d0;
-  border-color: #d9c3a7;
-}
-.menu-tag-company {
-  background: #efe3ff;
-  border-color: #d6c2f0;
-}
-.menu-tag-unlicensed {
-  background: #ffe0ea;
-  border-color: #e6c0cc;
-}
-.menu-tag-unlicensed-limited {
-  background: #e5e7eb;
-  border-color: #d1d5db;
 }
 #category-filters {
   max-height: 220px;

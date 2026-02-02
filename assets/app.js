@@ -3,7 +3,6 @@
     EVENT_CSV_URL,
     TILE_URL,
     TILE_ATTRIBUTION,
-    DATASET_ATTRIBUTION,
   } = window.App.config;
   const { fetchCSV, parseCSV } = window.App.csv;
   const { escapeHtml } = window.App.utils;
@@ -529,6 +528,36 @@
     };
     locateControl.addTo(map);
 
+    let locationMarker = null;
+    let locationCircle = null;
+    map.on("locationfound", event => {
+      const { latlng, accuracy } = event;
+      if (!locationMarker) {
+        locationMarker = L.circleMarker(latlng, {
+          radius: 8,
+          color: "#2563eb",
+          fillColor: "#60a5fa",
+          fillOpacity: 0.9,
+          weight: 2,
+        }).addTo(map);
+      } else {
+        locationMarker.setLatLng(latlng);
+      }
+
+      if (!locationCircle) {
+        locationCircle = L.circle(latlng, {
+          radius: accuracy || 0,
+          color: "#1d4ed8",
+          fillColor: "#93c5fd",
+          fillOpacity: 0.2,
+          weight: 1,
+        }).addTo(map);
+      } else {
+        locationCircle.setLatLng(latlng);
+        locationCircle.setRadius(accuracy || 0);
+      }
+    });
+
     map.on("locationerror", event => {
       console.warn("位置情報の取得に失敗しました。", event.message);
       alert("位置情報の取得に失敗しました。ブラウザの許可設定をご確認ください。");
@@ -651,8 +680,8 @@
     }
 
     const markerRenderer = L.canvas({ padding: 0.5 });
-    const LABEL_MIN_ZOOM = 11;
-    const LABEL_FADE_MAX_ZOOM = 13;
+    const LABEL_MIN_ZOOM = 12;
+    const LABEL_FADE_MAX_ZOOM = 15;
     const createMarkerForEvent = event => {
       const dateRange = formatDateRange(event.startDate, event.endDate);
       const labelHtml = `
