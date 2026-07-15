@@ -1,4 +1,13 @@
 (() => {
+  function hashText(text) {
+    let hash = 2166136261;
+    for (let i = 0; i < text.length; i += 1) {
+      hash ^= text.charCodeAt(i);
+      hash = Math.imul(hash, 16777619);
+    }
+    return `${text.length}-${(hash >>> 0).toString(16)}`;
+  }
+
   function parseCSV(text) {
     const rows = [];
     let row = [];
@@ -64,6 +73,7 @@
     try {
       const text = await fetchCSV(url, encoding);
       const payload = parseCSV(text);
+      payload.fingerprint = hashText(text);
       self.postMessage({ id, ok: true, payload });
     } catch (error) {
       self.postMessage({

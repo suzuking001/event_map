@@ -29,6 +29,7 @@
   const filterSummary = document.getElementById("filter-summary");
   const visibleCount = document.getElementById("visible-count");
   const totalCount = document.getElementById("total-count");
+  const dataRefreshStatus = document.getElementById("data-refresh-status");
 
   const CATEGORY_PALETTE = [
     "#2563eb",
@@ -234,6 +235,48 @@
     `;
   };
 
+  const hashText = text => {
+    let hash = 2166136261;
+    for (let i = 0; i < text.length; i += 1) {
+      hash ^= text.charCodeAt(i);
+      hash = Math.imul(hash, 16777619);
+    }
+    return `${text.length}-${(hash >>> 0).toString(16)}`;
+  };
+
+  const buildFreshCsvUrl = () => {
+    const url = new URL(EVENT_CSV_URL);
+    url.searchParams.set("_event_map_refresh", String(Date.now()));
+    return url.toString();
+  };
+
+  const hasCachedEventCsv = async () => {
+    if (!("caches" in window) || location.protocol === "file:") {
+      return false;
+    }
+    try {
+      const request = new Request(EVENT_CSV_URL, { mode: "cors" });
+      return Boolean(await caches.match(request));
+    } catch (error) {
+      console.warn("CSV cache check failed.", error);
+      return false;
+    }
+  };
+
+  const formatCheckedTime = date =>
+    new Intl.DateTimeFormat("ja-JP", {
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(date);
+
+  const setDataRefreshStatus = (message, state = "checking") => {
+    if (!dataRefreshStatus) return;
+    dataRefreshStatus.textContent = message;
+    dataRefreshStatus.dataset.state = state;
+  };
+
   const setDetailsOpen = (isOpen, htmlContent = "", titleText = "") => {
     if (!detailsModal || !detailsBody) {
       return;
@@ -303,7 +346,7 @@
         reject(new Error("Worker not supported"));
         return;
       }
-      const worker = new Worker("assets/js/event-csv-worker.js");
+      const worker = new Worker("assets/js/event-csv-worker.js?v=4");
       const requestId = buildWorkerId();
 
       const cleanup = () => {
@@ -337,16 +380,16 @@
       worker.postMessage({ id: requestId, url, encoding });
     });
 
-  const fetchAndParseEvents = async () => {
+  const fetchAndParseEvents = async (url = EVENT_CSV_URL) => {
     if (window.Worker) {
       try {
-        return await fetchCSVViaWorker(EVENT_CSV_URL);
+        return await fetchCSVViaWorker(url);
       } catch (error) {
         console.warn("CSV worker failed. Falling back to main thread.", error);
       }
     }
-    const csvText = await fetchCSV(EVENT_CSV_URL);
-    return parseCSV(csvText);
+    const csvText = await fetchCSV(url);
+    return { ...parseCSV(csvText), fingerprint: hashText(csvText) };
   };
 
   const setupMenuControls = () => {
@@ -564,125 +607,80 @@
       alert("位置情報の取得に失敗しました。ブラウザの許可設定をご確認ください。");
     });
 
-    let headers = [];
-    let rows = [];
-    try {
-      ({ headers, rows } = await fetchAndParseEvents());
-    } finally {
-      setLoading(false);
-    }
-
-    const events = [];
-    const categorySet = new Set();
-    let minDateValue = null;
-    let maxDateValue = null;
-
-    rows.forEach((row, rowIndex) => {
-      const fields = {};
-      headers.forEach((header, index) => {
-        fields[header] = row[index] ? String(row[index]).trim() : "";
-      });
-
-      const name = fields["イベント名"] || "イベント";
-      const startDate = fields["開始日"] || "";
-      const endDate = fields["終了日"] || "";
-      const startTime = fields["開始時間"] || "";
-      const endTime = fields["終了時間"] || "";
-      const place = fields["場所名称"] || "";
-      const lat = parseFloat(fields["緯度"]);
-      const lon = parseFloat(fields["経度"]);
-
-      const categories = normalizeCategories(fields["カテゴリー"]);
-      categories.forEach(cat => categorySet.add(cat));
-      const primaryCategory = categories[0] || "未分類";
-      const baseColor = getCategoryColor(primaryCategory);
-      const strokeColor = adjustColor(baseColor, -24);
-      const fillColor = adjustColor(baseColor, 60);
-      const searchText = buildSearchText(fields);
-
-      const startValue = parseDateValue(startDate);
-      const endValue = parseDateValue(endDate || startDate);
-      [startValue, endValue].forEach(value => {
-        if (value == null) return;
-        if (minDateValue == null || value < minDateValue) {
-          minDateValue = value;
-        }
-        if (maxDateValue == null || value > maxDateValue) {
-          maxDateValue = value;
-        }
-      });
-
-      if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-        return;
-      }
-
-      events.push({
-        id: fields["NO"] || `event-${rowIndex}`,
-        name,
-        startDate,
-        endDate,
-        startTime,
-        endTime,
-        place,
-        lat,
-        lon,
-        categories,
-        primaryCategory,
-        strokeColor,
-        fillColor,
-        searchText,
-        startValue,
-        endValue: endValue || startValue,
-        fields,
-      });
-    });
-
-    const sortedCategories = Array.from(categorySet).sort((a, b) =>
-      a.localeCompare(b, "ja")
-    );
-    buildCategoryFilters(sortedCategories);
-
-    if (dateStart && dateEnd) {
-      if (minDateValue != null && maxDateValue != null) {
-        const minDate = new Date(minDateValue);
-        const maxDate = new Date(maxDateValue);
-        const pad = value => String(value).padStart(2, "0");
-        const formatDate = date =>
-          `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-        dateStart.min = formatDate(minDate);
-        dateEnd.min = formatDate(minDate);
-        dateStart.max = formatDate(maxDate);
-        dateEnd.max = formatDate(maxDate);
-        if (dateRangeHint) {
-          dateRangeHint.textContent = `確認可能期間: ${dateStart.min} ～ ${dateEnd.max}`;
-        }
-        if (!dateStart.value && !dateEnd.value) {
-          const today = new Date();
-          const todayText = formatDate(today);
-          const todayValue = parseDateValue(todayText);
-          if (
-            todayValue != null &&
-            todayValue >= minDateValue &&
-            todayValue <= maxDateValue
-          ) {
-            const endDate = new Date(today);
-            endDate.setDate(endDate.getDate() + 7);
-            const endText = formatDate(endDate);
-            const endValue = parseDateValue(endText);
-            const endWithinRange =
-              endValue != null && endValue <= maxDateValue;
-            dateStart.value = todayText;
-            dateEnd.value = endWithinRange ? endText : dateEnd.max;
-          }
-        }
-      } else if (dateRangeHint) {
-        dateRangeHint.textContent = "日付データがありません。";
-      }
-    }
-
     const markerRenderer = L.canvas({ padding: 0.5 });
     const LABEL_MIN_ZOOM = 12;
     const LABEL_FADE_MAX_ZOOM = 15;
+    let headers = [];
+    let markers = [];
+    let currentFingerprint = "";
+
+    const buildEventData = (nextHeaders, rows) => {
+      const events = [];
+      const categorySet = new Set();
+      let minDateValue = null;
+      let maxDateValue = null;
+
+      rows.forEach((row, rowIndex) => {
+        const fields = {};
+        nextHeaders.forEach((header, index) => {
+          fields[header] = row[index] ? String(row[index]).trim() : "";
+        });
+
+        const name = fields["イベント名"] || "イベント";
+        const startDate = fields["開始日"] || "";
+        const endDate = fields["終了日"] || "";
+        const startTime = fields["開始時間"] || "";
+        const endTime = fields["終了時間"] || "";
+        const place = fields["場所名称"] || "";
+        const lat = parseFloat(fields["緯度"]);
+        const lon = parseFloat(fields["経度"]);
+
+        const categories = normalizeCategories(fields["カテゴリー"]);
+        categories.forEach(category => categorySet.add(category));
+        const primaryCategory = categories[0] || "未分類";
+        const baseColor = getCategoryColor(primaryCategory);
+        const startValue = parseDateValue(startDate);
+        const endValue = parseDateValue(endDate || startDate);
+
+        [startValue, endValue].forEach(value => {
+          if (value == null) return;
+          if (minDateValue == null || value < minDateValue) minDateValue = value;
+          if (maxDateValue == null || value > maxDateValue) maxDateValue = value;
+        });
+
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+
+        events.push({
+          id: fields["NO"] || `event-${rowIndex}`,
+          name,
+          startDate,
+          endDate,
+          startTime,
+          endTime,
+          place,
+          lat,
+          lon,
+          categories,
+          primaryCategory,
+          strokeColor: adjustColor(baseColor, -24),
+          fillColor: adjustColor(baseColor, 60),
+          searchText: buildSearchText(fields),
+          startValue,
+          endValue: endValue || startValue,
+          fields,
+        });
+      });
+
+      return {
+        events,
+        categories: Array.from(categorySet).sort((a, b) =>
+          a.localeCompare(b, "ja")
+        ),
+        minDateValue,
+        maxDateValue,
+      };
+    };
+
     const createMarkerForEvent = event => {
       const dateRange = formatDateRange(event.startDate, event.endDate);
       const labelHtml = `
@@ -714,8 +712,6 @@
       return marker;
     };
 
-    const markers = events.map(event => ({ marker: null, event }));
-
     const updateLabelOpacity = () => {
       const zoom = map.getZoom();
       let opacity = 1;
@@ -742,13 +738,6 @@
 
     map.on("zoomend", updateLabelOpacity);
     map.whenReady(updateLabelOpacity);
-
-    if (totalCount) {
-      totalCount.textContent = `${markers.length}`;
-    }
-    if (filterSummary) {
-      filterSummary.classList.toggle("hidden", false);
-    }
 
     const matchesDateRange = event => {
       let startFilter = parseDateValue(dateStart ? dateStart.value : "");
@@ -837,6 +826,84 @@
       }
     };
 
+    const updateDateBounds = (minDateValue, maxDateValue, initializeDates) => {
+      if (!dateStart || !dateEnd) return;
+      if (minDateValue == null || maxDateValue == null) {
+        dateStart.removeAttribute("min");
+        dateStart.removeAttribute("max");
+        dateEnd.removeAttribute("min");
+        dateEnd.removeAttribute("max");
+        if (dateRangeHint) dateRangeHint.textContent = "日付データがありません。";
+        return;
+      }
+
+      const pad = value => String(value).padStart(2, "0");
+      const formatDate = date =>
+        `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+      dateStart.min = formatDate(new Date(minDateValue));
+      dateEnd.min = dateStart.min;
+      dateStart.max = formatDate(new Date(maxDateValue));
+      dateEnd.max = dateStart.max;
+      if (dateRangeHint) {
+        dateRangeHint.textContent = `確認可能期間: ${dateStart.min} ～ ${dateEnd.max}`;
+      }
+
+      if (!initializeDates || dateStart.value || dateEnd.value) return;
+      const today = new Date();
+      const todayText = formatDate(today);
+      const todayValue = parseDateValue(todayText);
+      if (
+        todayValue == null ||
+        todayValue < minDateValue ||
+        todayValue > maxDateValue
+      ) {
+        return;
+      }
+      const oneWeekLater = new Date(today);
+      oneWeekLater.setDate(oneWeekLater.getDate() + 7);
+      const endText = formatDate(oneWeekLater);
+      const endValue = parseDateValue(endText);
+      dateStart.value = todayText;
+      dateEnd.value = endValue != null && endValue <= maxDateValue
+        ? endText
+        : dateEnd.max;
+    };
+
+    const replaceEventData = (payload, initializeDates = false) => {
+      const previousInputs = categoryFilters
+        ? Array.from(categoryFilters.querySelectorAll("input[type='checkbox']"))
+        : [];
+      const previousSelected = new Set(
+        previousInputs.filter(input => input.checked).map(input => input.value)
+      );
+      const allWereSelected =
+        previousInputs.length > 0 && previousSelected.size === previousInputs.length;
+
+      markers.forEach(item => {
+        if (item.marker && map.hasLayer(item.marker)) map.removeLayer(item.marker);
+      });
+
+      const next = buildEventData(payload.headers, payload.rows);
+      headers = payload.headers;
+      markers = next.events.map(event => ({ marker: null, event }));
+      currentFingerprint = payload.fingerprint || "";
+      buildCategoryFilters(next.categories);
+
+      if (!initializeDates && previousInputs.length > 0 && categoryFilters) {
+        categoryFilters
+          .querySelectorAll("input[type='checkbox']")
+          .forEach(input => {
+            input.checked = allWereSelected || previousSelected.has(input.value);
+          });
+      }
+
+      updateDateBounds(next.minDateValue, next.maxDateValue, initializeDates);
+      if (totalCount) totalCount.textContent = `${markers.length}`;
+      if (filterSummary) filterSummary.classList.remove("hidden");
+      applyFilters();
+      updateLabelOpacity();
+    };
+
     if (dateStart) {
       dateStart.addEventListener("change", applyFilters);
     }
@@ -870,8 +937,53 @@
       });
     }
 
-    applyFilters();
-    updateLabelOpacity();
+    const cachedDataAvailable = await hasCachedEventCsv();
+    const initialUrl = cachedDataAvailable ? EVENT_CSV_URL : buildFreshCsvUrl();
+    setDataRefreshStatus(
+      cachedDataAvailable
+        ? "保存データを読み込んでいます..."
+        : "最新のイベント情報を取得しています..."
+    );
+
+    try {
+      const initialPayload = await fetchAndParseEvents(initialUrl);
+      replaceEventData(initialPayload, true);
+    } finally {
+      setLoading(false);
+    }
+
+    if (!cachedDataAvailable) {
+      setDataRefreshStatus(
+        `最新情報を確認しました（${formatCheckedTime(new Date())}）`,
+        "success"
+      );
+      return;
+    }
+
+    setDataRefreshStatus("保存データを表示中・最新情報を確認しています...");
+    void (async () => {
+      try {
+        const freshPayload = await fetchAndParseEvents(buildFreshCsvUrl());
+        if (freshPayload.fingerprint !== currentFingerprint) {
+          replaceEventData(freshPayload, false);
+          setDataRefreshStatus(
+            `最新情報に更新しました（${formatCheckedTime(new Date())}）`,
+            "success"
+          );
+        } else {
+          setDataRefreshStatus(
+            `最新情報を確認しました（${formatCheckedTime(new Date())}）`,
+            "success"
+          );
+        }
+      } catch (error) {
+        console.warn("Fresh event data fetch failed. Using cached data.", error);
+        setDataRefreshStatus(
+          "通信できないため、保存済みのイベント情報を表示しています。",
+          "warning"
+        );
+      }
+    })();
   }
 
   main().catch(error => {

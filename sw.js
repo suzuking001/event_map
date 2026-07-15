@@ -1,16 +1,18 @@
-const STATIC_CACHE = "static-v2";
-const RUNTIME_CACHE = "runtime-v2";
-const DATA_CACHE = "data-v2";
-const TILE_CACHE = "tiles-v2";
+const STATIC_CACHE = "static-v4";
+const RUNTIME_CACHE = "runtime-v4";
+const DATA_CACHE = "data-v4";
+const TILE_CACHE = "tiles-v4";
+
+const EVENT_REFRESH_PARAM = "_event_map_refresh";
 
 const STATIC_ASSETS = [
   "index.html",
-  "assets/styles.css",
-  "assets/app.js",
+  "assets/styles.css?v=4",
+  "assets/app.js?v=4",
   "assets/js/config.js",
   "assets/js/csv.js",
   "assets/js/utils.js",
-  "assets/js/event-csv-worker.js",
+  "assets/js/event-csv-worker.js?v=4",
   "manifest.webmanifest",
   "browserconfig.xml",
   "assets/icons/icon-16.png",
@@ -83,24 +85,17 @@ const networkFirst = (request, cacheName) =>
     })
     .catch(() => caches.match(request));
 
-const staleWhileRevalidate = (request, cacheName, event) =>
-  caches.match(request).then(cached => {
-    const fetchPromise = fetch(request)
-      .then(response => {
-        if (shouldCache(response)) {
-          caches.open(cacheName).then(cache => cache.put(request, response.clone()));
-        }
-        return response;
-      })
-      .catch(() => cached);
-    if (cached) {
-      if (event) {
-        event.waitUntil(fetchPromise);
-      }
-      return cached;
-    }
-    return fetchPromise;
-  });
+const fetchFreshCsv = async request => {
+  const response = await fetch(request);
+  if (shouldCache(response)) {
+    const canonicalUrl = new URL(request.url);
+    canonicalUrl.searchParams.delete(EVENT_REFRESH_PARAM);
+    const canonicalRequest = new Request(canonicalUrl.toString(), request);
+    const cache = await caches.open(DATA_CACHE);
+    await cache.put(canonicalRequest, response.clone());
+  }
+  return response;
+};
 
 self.addEventListener("fetch", event => {
   const { request } = event;
@@ -110,6 +105,7 @@ self.addEventListener("fetch", event => {
 
   const url = request.url;
   const isSameOrigin = url.startsWith(self.location.origin);
+  const parsedUrl = new URL(url);
 
   if (request.mode === "navigate") {
     event.respondWith(
@@ -119,7 +115,11 @@ self.addEventListener("fetch", event => {
   }
 
   if (isCsvRequest(url)) {
-    event.respondWith(staleWhileRevalidate(request, DATA_CACHE, event));
+    if (parsedUrl.searchParams.has(EVENT_REFRESH_PARAM)) {
+      event.respondWith(fetchFreshCsv(request));
+    } else {
+      event.respondWith(cacheFirst(request, DATA_CACHE));
+    }
     return;
   }
 

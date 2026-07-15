@@ -29,7 +29,7 @@
     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
     crossorigin=""
   />
-  <link rel="stylesheet" href="assets/styles.css" />
+  <link rel="stylesheet" href="assets/styles.css?v=4" />
 </head>
 <body>
   <button id="menu-toggle" class="menu-toggle" aria-label="メニューを開く" aria-expanded="true" aria-controls="side-menu">
@@ -77,6 +77,9 @@
       </div>
     </div>
     <div id="date-info" class="menu-hint">未選択 / 全日表示</div>
+    <div id="data-refresh-status" class="menu-hint data-refresh-status" role="status" aria-live="polite">
+      イベント情報を確認しています...
+    </div>
     <div class="menu-footer">
       <div class="menu-license">
         <div>Leaflet (MIT) | &copy; OpenStreetMap contributors (ODbL)</div>
@@ -85,6 +88,7 @@
       </div>
       <div class="menu-actions">
         <button id="about-button" class="menu-button" type="button">このアプリについて</button>
+        <a class="menu-button menu-link-button" href="https://github.com/suzuking001" target="_blank" rel="noopener">開発者のGitHub</a>
       </div>
     </div>
   </aside>
@@ -117,6 +121,15 @@
           <a href="https://opendata.pref.shizuoka.jp/dataset/10987.html" target="_blank" rel="noopener">https://opendata.pref.shizuoka.jp/dataset/10987.html</a>
         </p>
         <p>位置情報は端末内で処理され、保存されません。</p>
+        <section class="about-author" aria-labelledby="about-author-title">
+          <h2 id="about-author-title">開発者</h2>
+          <p><strong>鈴木久崇 / Suzuki Hisataka</strong></p>
+          <p>製造シミュレーションや、自治体オープンデータを活用したWebアプリを開発しています。</p>
+          <div class="about-links">
+            <a class="details-link-button" href="https://github.com/suzuking001" target="_blank" rel="noopener">開発者のGitHubを見る</a>
+            <a class="details-link-button" href="https://github.com/suzuking001/event_map#readme" target="_blank" rel="noopener">説明・ソースコードを見る</a>
+          </div>
+        </section>
       </div>
     </div>
   </div>
@@ -130,7 +143,7 @@
   <script charset="UTF-8" src="assets/js/config.js"></script>
   <script charset="UTF-8" src="assets/js/csv.js"></script>
   <script charset="UTF-8" src="assets/js/utils.js"></script>
-  <script charset="UTF-8" src="assets/app.js"></script>
+  <script charset="UTF-8" src="assets/app.js?v=4"></script>
   <script>
     if ("serviceWorker" in navigator && location.protocol !== "file:") {
       window.addEventListener("load", () => {
