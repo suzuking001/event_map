@@ -1,7 +1,7 @@
-const STATIC_CACHE = "static-v1";
-const RUNTIME_CACHE = "runtime-v1";
-const DATA_CACHE = "data-v1";
-const TILE_CACHE = "tiles-v1";
+const STATIC_CACHE = "static-v2";
+const RUNTIME_CACHE = "runtime-v2";
+const DATA_CACHE = "data-v2";
+const TILE_CACHE = "tiles-v2";
 
 const STATIC_ASSETS = [
   "index.html",

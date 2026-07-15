@@ -45,7 +45,7 @@ Service Workerにより、次回以降の読み込みが速くなります。
 
 ## データソース
 - 静岡県オープンデータポータル（浜松市イベント）
-  - https://opendata.pref.shizuoka.jp/dataset/12574.html
+  - https://opendata.pref.shizuoka.jp/dataset/10987.html
 - CSV（Shift_JIS）
   - https://static.hamamatsu.odpf.net/opendata/v01/221309_hamamatsu_event/221309_hamamatsu_event.csv
 

@@ -211,8 +211,9 @@
         const rawValue = event.fields[header] || "";
         let valueHtml = escapeValue(rawValue).replace(/\r?\n/g, "<br>");
         if (header === "URL") {
-          valueHtml = rawValue
-            ? `<a href="${escapeValue(rawValue)}" target="_blank" rel="noopener">${escapeValue(rawValue)}</a>`
+          const normalizedValue = normalizeUrl(rawValue);
+          valueHtml = normalizedValue
+            ? `<a href="${escapeValue(normalizedValue)}" target="_blank" rel="noopener">${escapeValue(rawValue)}</a>`
             : "未記載";
         } else if (!valueHtml) {
           valueHtml = "未記載";
