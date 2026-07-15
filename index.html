@@ -29,7 +29,7 @@
     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
     crossorigin=""
   />
-  <link rel="stylesheet" href="assets/styles.css?v=4" />
+  <link rel="stylesheet" href="assets/styles.css?v=5" />
 </head>
 <body>
   <button id="menu-toggle" class="menu-toggle" aria-label="メニューを開く" aria-expanded="true" aria-controls="side-menu">
@@ -104,30 +104,59 @@
     </div>
   </div>
 
-  <div id="about-modal" class="details-modal" aria-hidden="true" role="dialog" aria-label="このアプリについて">
-    <div class="details-container" role="document">
-      <div class="details-header">
-        <div class="details-title">このアプリについて</div>
-        <button id="about-close" class="menu-button" type="button">閉じる</button>
+  <div id="about-modal" class="details-modal about-modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="about-title">
+    <div class="details-container about-container" role="document">
+      <div class="about-hero">
+        <div class="about-eyebrow">HAMAMATSU OPEN DATA</div>
+        <div class="about-hero-row">
+          <div>
+            <h1 id="about-title">浜松市 イベントマップ</h1>
+            <p>行きたいイベントを、日付と地図から直感的に。</p>
+          </div>
+          <button id="about-close" class="about-close-button" type="button" aria-label="このアプリについてを閉じる">×</button>
+        </div>
+        <span class="about-badge">個人制作の非公式アプリ</span>
       </div>
       <div id="about-body" class="about-body">
-        <p>このアプリは、浜松市が公開するオープンデータ「イベント」を利用しています。</p>
-        <p>データ提供：浜松市<br>クリエイティブ・コモンズ・ライセンス 表示2.1 日本</p>
-        <p>本アプリは個人が作成した非公式アプリであり、<br>
-浜松市が提供・運営するものではありません。</p>
-        <p>表示内容は可能な限り最新の情報に基づいていますが、内容の正確性を保証するものではありません。<br>
-最新情報は必ず公式の情報をご確認ください。</p>
-        <p>公式情報は下記から入手するようにしてください。<br>
-          <a href="https://opendata.pref.shizuoka.jp/dataset/10987.html" target="_blank" rel="noopener">https://opendata.pref.shizuoka.jp/dataset/10987.html</a>
-        </p>
-        <p>位置情報は端末内で処理され、保存されません。</p>
+        <p class="about-lead">浜松市が公開するイベント情報を、地図上で探しやすく整理したWebアプリです。</p>
+        <div class="about-feature-grid" aria-label="このアプリでできること">
+          <div class="about-feature-card">
+            <span class="about-feature-number">01</span>
+            <strong>期間で探す</strong>
+            <span>今日から週末までなど、行きたい日を指定できます。</span>
+          </div>
+          <div class="about-feature-card">
+            <span class="about-feature-number">02</span>
+            <strong>好みで絞る</strong>
+            <span>カテゴリとキーワードから興味のある催しを検索できます。</span>
+          </div>
+          <div class="about-feature-card">
+            <span class="about-feature-number">03</span>
+            <strong>地図で確認</strong>
+            <span>会場の位置とイベント詳細をひと続きで確認できます。</span>
+          </div>
+        </div>
+        <div class="about-primary-actions">
+          <button id="about-start" class="about-primary-button" type="button">マップを見る</button>
+          <a class="about-secondary-button" href="https://opendata.pref.shizuoka.jp/dataset/10987.html" target="_blank" rel="noopener">公式データを確認</a>
+        </div>
+        <details class="about-more">
+          <summary>データ利用・免責事項</summary>
+          <div class="about-more-content">
+            <p>データ提供：浜松市<br>クリエイティブ・コモンズ・ライセンス 表示2.1 日本</p>
+            <p>本アプリは個人が作成した非公式アプリであり、浜松市が提供・運営するものではありません。表示内容の正確性を保証するものではないため、最新情報は公式サイトでご確認ください。</p>
+            <p>位置情報は端末内で処理され、保存されません。</p>
+          </div>
+        </details>
         <section class="about-author" aria-labelledby="about-author-title">
-          <h2 id="about-author-title">開発者</h2>
-          <p><strong>鈴木久崇 / Suzuki Hisataka</strong></p>
-          <p>製造シミュレーションや、自治体オープンデータを活用したWebアプリを開発しています。</p>
+          <div>
+            <span class="about-author-label">DEVELOPER</span>
+            <h2 id="about-author-title">鈴木久崇 / Suzuki Hisataka</h2>
+            <p>製造シミュレーションや自治体オープンデータを活用したWebアプリを開発しています。</p>
+          </div>
           <div class="about-links">
-            <a class="details-link-button" href="https://github.com/suzuking001" target="_blank" rel="noopener">開発者のGitHubを見る</a>
-            <a class="details-link-button" href="https://github.com/suzuking001/event_map#readme" target="_blank" rel="noopener">説明・ソースコードを見る</a>
+            <a href="https://github.com/suzuking001" target="_blank" rel="noopener">GitHub</a>
+            <a href="https://github.com/suzuking001/event_map#readme" target="_blank" rel="noopener">README・ソース</a>
           </div>
         </section>
       </div>
@@ -143,7 +172,7 @@
   <script charset="UTF-8" src="assets/js/config.js"></script>
   <script charset="UTF-8" src="assets/js/csv.js"></script>
   <script charset="UTF-8" src="assets/js/utils.js"></script>
-  <script charset="UTF-8" src="assets/app.js?v=4"></script>
+  <script charset="UTF-8" src="assets/app.js?v=5"></script>
   <script>
     if ("serviceWorker" in navigator && location.protocol !== "file:") {
       window.addEventListener("load", () => {

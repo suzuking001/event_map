@@ -15,6 +15,7 @@
   const aboutModal = document.getElementById("about-modal");
   const aboutClose = document.getElementById("about-close");
   const aboutButton = document.getElementById("about-button");
+  const aboutStart = document.getElementById("about-start");
   const loading = document.getElementById("loading");
 
   const dateStart = document.getElementById("date-start");
@@ -310,10 +311,12 @@
       setDetailsOpen(false);
       aboutModal.inert = false;
       aboutModal.setAttribute("aria-hidden", "false");
-      if (aboutClose) {
+      aboutModal.classList.toggle("open", true);
+      if (aboutStart) {
+        aboutStart.focus();
+      } else if (aboutClose) {
         aboutClose.focus();
       }
-      aboutModal.classList.toggle("open", true);
       return;
     }
     if (aboutModal.contains(document.activeElement) && aboutButton) {
@@ -456,6 +459,9 @@
     if (aboutClose) {
       aboutClose.addEventListener("click", () => setAboutOpen(false));
     }
+    if (aboutStart) {
+      aboutStart.addEventListener("click", () => setAboutOpen(false));
+    }
     if (aboutModal) {
       aboutModal.addEventListener("click", event => {
         if (event.target === aboutModal) {
@@ -522,6 +528,14 @@
 
   async function main() {
     setupMenuControls();
+    try {
+      if (!sessionStorage.getItem("event-map-welcome-shown")) {
+        sessionStorage.setItem("event-map-welcome-shown", "1");
+        setAboutOpen(true);
+      }
+    } catch (error) {
+      setAboutOpen(true);
+    }
     if (dateRangeHint) {
       dateRangeHint.textContent = "データを読み込み中...";
     }
