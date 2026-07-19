@@ -698,8 +698,10 @@
     });
 
     const markerRenderer = L.canvas({ padding: 0.5 });
-    const LABEL_MIN_ZOOM = 12;
-    const LABEL_FADE_MAX_ZOOM = 15;
+    const isMobileViewport = window.innerWidth <= 768;
+    const LABEL_MIN_ZOOM = isMobileViewport ? 14 : 12;
+    const LABEL_FADE_MAX_ZOOM = isMobileViewport ? 16 : 15;
+    const MARKER_VIEW_PADDING = isMobileViewport ? 0.2 : 0.35;
     let headers = [];
     let markers = [];
     let currentFingerprint = "";
@@ -772,11 +774,6 @@
     };
 
     const createMarkerForEvent = event => {
-      const dateRange = formatDateRange(event.startDate, event.endDate);
-      const labelHtml = `
-        <span class="label-title">${escapeValue(event.name)}</span>
-        <span class="label-meta">${escapeValue(dateRange)}</span>
-      `;
       const marker = L.circleMarker([event.lat, event.lon], {
         radius: 8,
         color: event.strokeColor,
@@ -784,14 +781,6 @@
         fillOpacity: 0.9,
         weight: 2,
         renderer: markerRenderer,
-      }).addTo(map);
-
-      marker.bindTooltip(labelHtml, {
-        permanent: true,
-        direction: "top",
-        offset: [0, -10],
-        className: "marker-label marker-label-event",
-        interactive: true,
       });
 
       marker.on("click", () => {
@@ -802,19 +791,41 @@
       return marker;
     };
 
-    const updateLabelOpacity = () => {
+    const getLabelOpacity = () => {
       const zoom = map.getZoom();
-      let opacity = 1;
       if (zoom <= LABEL_MIN_ZOOM) {
-        opacity = 0;
-      } else if (zoom >= LABEL_FADE_MAX_ZOOM) {
-        opacity = 1;
-      } else {
-        opacity = (zoom - LABEL_MIN_ZOOM) / (LABEL_FADE_MAX_ZOOM - LABEL_MIN_ZOOM);
+        return 0;
       }
+      if (zoom >= LABEL_FADE_MAX_ZOOM) {
+        return 1;
+      }
+      return (zoom - LABEL_MIN_ZOOM) / (LABEL_FADE_MAX_ZOOM - LABEL_MIN_ZOOM);
+    };
+
+    const syncMarkerLabels = () => {
+      const opacity = getLabelOpacity();
       markers.forEach(item => {
         if (!item.marker || !map.hasLayer(item.marker)) {
           return;
+        }
+        if (opacity <= 0) {
+          if (item.marker.getTooltip()) {
+            item.marker.unbindTooltip();
+          }
+          return;
+        }
+        if (!item.marker.getTooltip()) {
+          const dateRange = formatDateRange(item.event.startDate, item.event.endDate);
+          item.marker.bindTooltip(`
+            <span class="label-title">${escapeValue(item.event.name)}</span>
+            <span class="label-meta">${escapeValue(dateRange)}</span>
+          `, {
+            permanent: true,
+            direction: "top",
+            offset: [0, -10],
+            className: "marker-label marker-label-event",
+            interactive: true,
+          });
         }
         const tooltip = item.marker.getTooltip();
         const el = tooltip ? tooltip.getElement() : null;
@@ -826,18 +837,31 @@
       });
     };
 
-    map.on("zoomend", updateLabelOpacity);
-    map.whenReady(updateLabelOpacity);
+    const syncMarkersToViewport = () => {
+      const paddedBounds = map.getBounds().pad(MARKER_VIEW_PADDING);
+      markers.forEach(item => {
+        const shouldRender = item.matchesFilters &&
+          paddedBounds.contains([item.event.lat, item.event.lon]);
+        if (shouldRender) {
+          if (!item.marker) {
+            item.marker = createMarkerForEvent(item.event);
+          }
+          if (!map.hasLayer(item.marker)) {
+            item.marker.addTo(map);
+          }
+        } else if (item.marker && map.hasLayer(item.marker)) {
+          if (item.marker.getTooltip()) {
+            item.marker.unbindTooltip();
+          }
+          map.removeLayer(item.marker);
+        }
+      });
+      syncMarkerLabels();
+    };
 
-    const matchesDateRange = event => {
-      let startFilter = parseDateValue(dateStart ? dateStart.value : "");
-      let endFilter = parseDateValue(dateEnd ? dateEnd.value : "");
-      if (startFilter != null && endFilter != null && startFilter > endFilter) {
-        const temp = startFilter;
-        startFilter = endFilter;
-        endFilter = temp;
-      }
+    map.on("moveend", syncMarkersToViewport);
 
+    const matchesDateRange = (event, startFilter, endFilter) => {
       const eventStart = event.startValue;
       const eventEnd = event.endValue || eventStart;
 
@@ -852,6 +876,13 @@
 
     const applyFilters = () => {
       const selectedCategories = getSelectedCategories();
+      let startFilter = parseDateValue(dateStart ? dateStart.value : "");
+      let endFilter = parseDateValue(dateEnd ? dateEnd.value : "");
+      if (startFilter != null && endFilter != null && startFilter > endFilter) {
+        const temp = startFilter;
+        startFilter = endFilter;
+        endFilter = temp;
+      }
       const hasDateFilter = Boolean(
         (dateStart && dateStart.value) || (dateEnd && dateEnd.value)
       );
@@ -861,10 +892,9 @@
 
       if (!hasDateFilter) {
         markers.forEach(item => {
-          if (item.marker && map.hasLayer(item.marker)) {
-            map.removeLayer(item.marker);
-          }
+          item.matchesFilters = false;
         });
+        syncMarkersToViewport();
         if (visibleCount) {
           visibleCount.textContent = "0";
         }
@@ -878,22 +908,17 @@
         const categoryMatch = selectedCategories.size === 0
           ? false
           : item.event.categories.some(cat => selectedCategories.has(cat));
-        const dateMatch = matchesDateRange(item.event);
+        const dateMatch = matchesDateRange(item.event, startFilter, endFilter);
         const keywordMatch = keywordParts.length === 0
           ? true
           : keywordParts.every(part => item.event.searchText.includes(part));
         const shouldShow = categoryMatch && dateMatch && keywordMatch;
+        item.matchesFilters = shouldShow;
         if (shouldShow) {
-          if (!item.marker) {
-            item.marker = createMarkerForEvent(item.event);
-          } else if (!map.hasLayer(item.marker)) {
-            item.marker.addTo(map);
-          }
           visible += 1;
-        } else if (item.marker && map.hasLayer(item.marker)) {
-          map.removeLayer(item.marker);
         }
       });
+      syncMarkersToViewport();
 
       if (visibleCount) {
         visibleCount.textContent = `${visible}`;
@@ -975,7 +1000,7 @@
 
       const next = buildEventData(payload.headers, payload.rows);
       headers = payload.headers;
-      markers = next.events.map(event => ({ marker: null, event }));
+      markers = next.events.map(event => ({ marker: null, event, matchesFilters: false }));
       currentFingerprint = payload.fingerprint || "";
       buildCategoryFilters(next.categories);
 
@@ -991,7 +1016,6 @@
       if (totalCount) totalCount.textContent = `${markers.length}`;
       if (filterSummary) filterSummary.classList.remove("hidden");
       applyFilters();
-      updateLabelOpacity();
     };
 
     if (dateStart) {

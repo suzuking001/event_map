@@ -1,14 +1,14 @@
-const STATIC_CACHE = "static-v6";
-const RUNTIME_CACHE = "runtime-v6";
-const DATA_CACHE = "data-v6";
-const TILE_CACHE = "tiles-v6";
+const STATIC_CACHE = "static-v7";
+const RUNTIME_CACHE = "runtime-v7";
+const DATA_CACHE = "data-v7";
+const TILE_CACHE = "tiles-v7";
 
 const EVENT_REFRESH_PARAM = "_event_map_refresh";
 
 const STATIC_ASSETS = [
   "index.html",
   "assets/styles.css?v=5",
-  "assets/app.js?v=6",
+  "assets/app.js?v=7",
   "assets/js/config.js?v=6",
   "assets/js/csv.js",
   "assets/js/utils.js",
