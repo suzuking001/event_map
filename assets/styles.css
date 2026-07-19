@@ -1,5 +1,5 @@
 ﻿html, body { height: 100%; margin: 0; }
-#map { height: 100vh; width: 100%; }
+#map { height: 100vh; width: 100%; background: #b9d9e8; }
 .loading {
   position: absolute;
   top: 12px;

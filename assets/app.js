@@ -3,6 +3,7 @@
     EVENT_CSV_SOURCES,
     TILE_URL,
     TILE_ATTRIBUTION,
+    OVERVIEW_MAP,
   } = window.App.config;
   const { fetchCSV, parseCSV } = window.App.csv;
   const { escapeHtml } = window.App.utils;
@@ -622,6 +623,29 @@
       attributionControl: true,
       preferCanvas: true,
     }).setView([34.7108, 137.7266], 12);
+
+    map.createPane("overviewMapPane");
+    const overviewMapPane = map.getPane("overviewMapPane");
+    overviewMapPane.style.zIndex = "150";
+    overviewMapPane.style.pointerEvents = "none";
+
+    fetch(OVERVIEW_MAP.url, { cache: "force-cache" })
+      .then(response => {
+        if (!response.ok) throw new Error(`Overview map HTTP ${response.status}`);
+        return response.text();
+      })
+      .then(svgText => {
+        const svgDocument = new DOMParser().parseFromString(svgText, "image/svg+xml");
+        const svgElement = svgDocument.documentElement;
+        if (svgElement.nodeName.toLowerCase() !== "svg") {
+          throw new Error("Invalid overview map SVG");
+        }
+        L.svgOverlay(svgElement, OVERVIEW_MAP.bounds, {
+          pane: "overviewMapPane",
+          interactive: false,
+        }).addTo(map);
+      })
+      .catch(error => console.warn("Local overview map could not be loaded.", error));
 
     L.tileLayer(TILE_URL, {
       maxZoom: 19,
