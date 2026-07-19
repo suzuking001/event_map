@@ -1,6 +1,6 @@
 ﻿(() => {
   const {
-    EVENT_CSV_URL,
+    EVENT_CSV_SOURCES,
     TILE_URL,
     TILE_ATTRIBUTION,
   } = window.App.config;
@@ -245,23 +245,10 @@
     return `${text.length}-${(hash >>> 0).toString(16)}`;
   };
 
-  const buildFreshCsvUrl = () => {
-    const url = new URL(EVENT_CSV_URL);
+  const buildFreshCsvUrl = csvUrl => {
+    const url = new URL(csvUrl, window.location.href);
     url.searchParams.set("_event_map_refresh", String(Date.now()));
     return url.toString();
-  };
-
-  const hasCachedEventCsv = async () => {
-    if (!("caches" in window) || location.protocol === "file:") {
-      return false;
-    }
-    try {
-      const request = new Request(EVENT_CSV_URL, { mode: "cors" });
-      return Boolean(await caches.match(request));
-    } catch (error) {
-      console.warn("CSV cache check failed.", error);
-      return false;
-    }
   };
 
   const formatCheckedTime = date =>
@@ -383,16 +370,105 @@
       worker.postMessage({ id: requestId, url, encoding });
     });
 
-  const fetchAndParseEvents = async (url = EVENT_CSV_URL) => {
+  const fetchAndParseEvents = async (source, forceRefresh = false) => {
+    const url = forceRefresh && source.refresh
+      ? buildFreshCsvUrl(source.url)
+      : source.url;
+    const encoding = source.encoding || "utf-8";
     if (window.Worker) {
       try {
-        return await fetchCSVViaWorker(url);
+        return await fetchCSVViaWorker(url, encoding);
       } catch (error) {
         console.warn("CSV worker failed. Falling back to main thread.", error);
       }
     }
-    const csvText = await fetchCSV(url);
+    const csvText = await fetchCSV(url, encoding);
     return { ...parseCSV(csvText), fingerprint: hashText(csvText) };
+  };
+
+  const getEventKey = fields => {
+    const id = String(fields.NO || "").trim();
+    if (id) return `id:${id}`;
+    return [
+      fields["イベント名"],
+      fields["開始日"],
+      fields["終了日"],
+      fields["場所名称"],
+      fields["緯度"],
+      fields["経度"],
+    ].map(value => String(value || "").trim()).join("|");
+  };
+
+  const mergeEventPayloads = payloads => {
+    const mergedHeaders = [];
+    const headerSet = new Set();
+    payloads.forEach(({ payload }) => {
+      payload.headers.forEach(header => {
+        if (headerSet.has(header)) return;
+        headerSet.add(header);
+        mergedHeaders.push(header);
+      });
+    });
+
+    const eventsByKey = new Map();
+    payloads.forEach(({ payload }) => {
+      payload.rows.forEach(row => {
+        const fields = {};
+        payload.headers.forEach((header, index) => {
+          fields[header] = row[index] == null ? "" : row[index];
+        });
+        const key = getEventKey(fields);
+        if (!eventsByKey.has(key)) {
+          eventsByKey.set(key, fields);
+          return;
+        }
+        const existing = eventsByKey.get(key);
+        mergedHeaders.forEach(header => {
+          if (!existing[header] && fields[header]) {
+            existing[header] = fields[header];
+          }
+        });
+      });
+    });
+
+    const rows = Array.from(eventsByKey.values()).map(fields =>
+      mergedHeaders.map(header => fields[header] || "")
+    );
+    const fingerprintSource = payloads
+      .map(({ source, payload }) => `${source.id}:${payload.fingerprint || ""}`)
+      .join("|");
+
+    return {
+      headers: mergedHeaders,
+      rows,
+      fingerprint: hashText(fingerprintSource),
+    };
+  };
+
+  const loadEventSources = async (forceRefresh = false) => {
+    const results = await Promise.allSettled(
+      EVENT_CSV_SOURCES.map(source =>
+        fetchAndParseEvents(source, forceRefresh).then(payload => ({ source, payload }))
+      )
+    );
+    const loaded = results
+      .filter(result => result.status === "fulfilled")
+      .map(result => result.value);
+    const failedSources = results
+      .map((result, index) => ({ result, source: EVENT_CSV_SOURCES[index] }))
+      .filter(item => item.result.status === "rejected");
+
+    failedSources.forEach(({ result, source }) => {
+      console.warn(`Event CSV load failed: ${source.id}`, result.reason);
+    });
+    if (loaded.length === 0) {
+      throw new Error("すべてのイベントCSVを読み込めませんでした。");
+    }
+
+    return {
+      ...mergeEventPayloads(loaded),
+      failedSources,
+    };
   };
 
   const setupMenuControls = () => {
@@ -951,33 +1027,35 @@
       });
     }
 
-    const cachedDataAvailable = await hasCachedEventCsv();
-    const initialUrl = cachedDataAvailable ? EVENT_CSV_URL : buildFreshCsvUrl();
-    setDataRefreshStatus(
-      cachedDataAvailable
-        ? "保存データを読み込んでいます..."
-        : "最新のイベント情報を取得しています..."
-    );
+    setDataRefreshStatus("イベント情報を自動で読み込んでいます...");
 
+    let initialPayload;
     try {
-      const initialPayload = await fetchAndParseEvents(initialUrl);
+      initialPayload = await loadEventSources(false);
       replaceEventData(initialPayload, true);
     } finally {
       setLoading(false);
     }
 
-    if (!cachedDataAvailable) {
+    if (initialPayload.failedSources.length > 0) {
       setDataRefreshStatus(
-        `最新情報を確認しました（${formatCheckedTime(new Date())}）`,
-        "success"
+        "一部のデータを取得できませんでした。読み込めたイベントを表示しています。",
+        "warning"
       );
-      return;
+    } else {
+      setDataRefreshStatus("イベント情報を表示中・最新情報を確認しています...");
     }
 
-    setDataRefreshStatus("保存データを表示中・最新情報を確認しています...");
     void (async () => {
       try {
-        const freshPayload = await fetchAndParseEvents(buildFreshCsvUrl());
+        const freshPayload = await loadEventSources(true);
+        if (freshPayload.failedSources.length > 0) {
+          setDataRefreshStatus(
+            "通信できないデータがあるため、取得済みのイベント情報を表示しています。",
+            "warning"
+          );
+          return;
+        }
         if (freshPayload.fingerprint !== currentFingerprint) {
           replaceEventData(freshPayload, false);
           setDataRefreshStatus(

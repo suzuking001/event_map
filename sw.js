@@ -1,18 +1,19 @@
-const STATIC_CACHE = "static-v5";
-const RUNTIME_CACHE = "runtime-v5";
-const DATA_CACHE = "data-v5";
-const TILE_CACHE = "tiles-v5";
+const STATIC_CACHE = "static-v6";
+const RUNTIME_CACHE = "runtime-v6";
+const DATA_CACHE = "data-v6";
+const TILE_CACHE = "tiles-v6";
 
 const EVENT_REFRESH_PARAM = "_event_map_refresh";
 
 const STATIC_ASSETS = [
   "index.html",
   "assets/styles.css?v=5",
-  "assets/app.js?v=5",
-  "assets/js/config.js",
+  "assets/app.js?v=6",
+  "assets/js/config.js?v=6",
   "assets/js/csv.js",
   "assets/js/utils.js",
   "assets/js/event-csv-worker.js?v=4",
+  "data/current_and_future_events.csv",
   "manifest.webmanifest",
   "browserconfig.xml",
   "assets/icons/icon-16.png",
@@ -52,9 +53,10 @@ self.addEventListener("activate", event => {
   self.clients.claim();
 });
 
-const isCsvRequest = url =>
-  url.includes("hamamatsu_event.csv") ||
-  url.includes("/221309_hamamatsu_event/");
+const isCsvRequest = url => {
+  const parsedUrl = new URL(url);
+  return parsedUrl.pathname.toLowerCase().endsWith(".csv");
+};
 
 const isOsmTileRequest = url =>
   url.includes("tile.openstreetmap.org");
