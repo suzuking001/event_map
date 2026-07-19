@@ -246,11 +246,11 @@ const svg = `<?xml version="1.0" encoding="UTF-8"?>
   <title>浜松市ローカル概要地図</title>
   <metadata>Map data © OpenStreetMap contributors (ODbL); coastline © Natural Earth (public domain). Generated for Hamamatsu Event Map.</metadata>
   <style>
-    .land{fill:#eef0e8;stroke:none}.water{fill:#b9d9e8;stroke:#91c4da;stroke-width:1.4;fill-rule:evenodd}
+    .land{fill:#eef0e8;stroke:none}.water{fill:#b9d9e8;stroke:#91c4da;stroke-width:.6;fill-rule:evenodd}
     .river,.boundary,.rail,.tertiary,.secondary,.primary,.trunk,.motorway{vector-effect:non-scaling-stroke}
-    .river{fill:none;stroke:#83bdd5;stroke-width:2.2;stroke-linecap:round}.boundary{fill:none;stroke:#7b8790;stroke-width:2;stroke-dasharray:8 6}
-    .rail{fill:none;stroke:#69727a;stroke-width:2;stroke-dasharray:7 5;stroke-linecap:round}.tertiary,.secondary,.primary,.trunk,.motorway{fill:none;stroke-linecap:round;stroke-linejoin:round}
-    .tertiary{stroke:#fff;stroke-width:2}.secondary{stroke:#f5d8a8;stroke-width:3}.primary{stroke:#f2bd74;stroke-width:4}.trunk{stroke:#eca55d;stroke-width:5}.motorway{stroke:#dc8753;stroke-width:6}
+    .river{fill:none;stroke:#72b4cf;stroke-width:.8;stroke-linecap:round}.boundary{fill:none;stroke:#697780;stroke-width:.8;stroke-dasharray:4 3}
+    .rail{fill:none;stroke:#606a72;stroke-width:.9;stroke-dasharray:3 3;stroke-linecap:round}.tertiary,.secondary,.primary,.trunk,.motorway{fill:none;stroke-linecap:round;stroke-linejoin:round}
+    .tertiary{stroke:#fff;stroke-width:.8}.secondary{stroke:#e7c58f;stroke-width:1}.primary{stroke:#e9ad63;stroke-width:1.4}.trunk{stroke:#dc914f;stroke-width:1.8}.motorway{stroke:#cf7444;stroke-width:2.2}
   </style>
   <rect width="${WIDTH}" height="${HEIGHT}" fill="#b9d9e8"/>
   ${group("land", layers.land)}
