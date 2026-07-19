@@ -24,7 +24,7 @@
     '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a> (ODbL)';
 
   const OVERVIEW_MAP = {
-    url: "assets/maps/hamamatsu-overview.svg?v=1",
+    url: "assets/maps/hamamatsu-overview.webp?v=2",
     bounds: [
       [34.58, 137.4869556],
       [35.304395, 138.058702],

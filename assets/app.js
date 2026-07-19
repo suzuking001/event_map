@@ -629,23 +629,11 @@
     overviewMapPane.style.zIndex = "150";
     overviewMapPane.style.pointerEvents = "none";
 
-    fetch(OVERVIEW_MAP.url, { cache: "force-cache" })
-      .then(response => {
-        if (!response.ok) throw new Error(`Overview map HTTP ${response.status}`);
-        return response.text();
-      })
-      .then(svgText => {
-        const svgDocument = new DOMParser().parseFromString(svgText, "image/svg+xml");
-        const svgElement = svgDocument.documentElement;
-        if (svgElement.nodeName.toLowerCase() !== "svg") {
-          throw new Error("Invalid overview map SVG");
-        }
-        L.svgOverlay(svgElement, OVERVIEW_MAP.bounds, {
-          pane: "overviewMapPane",
-          interactive: false,
-        }).addTo(map);
-      })
-      .catch(error => console.warn("Local overview map could not be loaded.", error));
+    L.imageOverlay(OVERVIEW_MAP.url, OVERVIEW_MAP.bounds, {
+      pane: "overviewMapPane",
+      interactive: false,
+      alt: "浜松市ローカル概要地図",
+    }).addTo(map);
 
     L.tileLayer(TILE_URL, {
       maxZoom: 19,
