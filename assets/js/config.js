@@ -1,8 +1,20 @@
 ﻿(() => {
   window.App = window.App || {};
 
-  const EVENT_CSV_URL =
-    "https://static.hamamatsu.odpf.net/opendata/v01/221309_hamamatsu_event/221309_hamamatsu_event.csv";
+  const EVENT_CSV_SOURCES = [
+    {
+      id: "hamamatsu-open-data",
+      url: "https://static.hamamatsu.odpf.net/opendata/v01/221309_hamamatsu_event/221309_hamamatsu_event.csv",
+      encoding: "shift-jis",
+      refresh: true,
+    },
+    {
+      id: "bundled-event-data",
+      url: "data/current_and_future_events.csv",
+      encoding: "utf-8",
+      refresh: false,
+    },
+  ];
 
   const TILE_URL =
     new URLSearchParams(window.location.search).get("tiles") ||
@@ -12,7 +24,7 @@
     '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a> (ODbL)';
 
   window.App.config = {
-    EVENT_CSV_URL,
+    EVENT_CSV_SOURCES,
     TILE_URL,
     TILE_ATTRIBUTION,
   };
