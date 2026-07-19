@@ -18,7 +18,7 @@
 
   const TILE_URL =
     new URLSearchParams(window.location.search).get("tiles") ||
-    "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+    "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
 
   const TILE_ATTRIBUTION =
     '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a> (ODbL)';

@@ -1,15 +1,16 @@
-const STATIC_CACHE = "static-v7";
-const RUNTIME_CACHE = "runtime-v7";
-const DATA_CACHE = "data-v7";
-const TILE_CACHE = "tiles-v7";
+const STATIC_CACHE = "static-v8";
+const RUNTIME_CACHE = "runtime-v8";
+const DATA_CACHE = "data-v8";
+// Keep the tile cache stable across app releases so repeat map views stay fast.
+const TILE_CACHE = "tiles-v1";
 
 const EVENT_REFRESH_PARAM = "_event_map_refresh";
 
 const STATIC_ASSETS = [
   "index.html",
   "assets/styles.css?v=5",
-  "assets/app.js?v=7",
-  "assets/js/config.js?v=6",
+  "assets/app.js?v=8",
+  "assets/js/config.js?v=8",
   "assets/js/csv.js",
   "assets/js/utils.js",
   "assets/js/event-csv-worker.js?v=4",

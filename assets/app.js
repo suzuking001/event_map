@@ -623,9 +623,15 @@
       preferCanvas: true,
     }).setView([34.7108, 137.7266], 12);
 
+    const isMobileMap = window.innerWidth <= 768;
     L.tileLayer(TILE_URL, {
       maxZoom: 19,
       attribution: TILE_ATTRIBUTION,
+      updateWhenIdle: true,
+      updateWhenZooming: false,
+      updateInterval: isMobileMap ? 300 : 200,
+      keepBuffer: isMobileMap ? 1 : 2,
+      detectRetina: false,
     }).addTo(map);
 
     map.attributionControl.setPrefix(
