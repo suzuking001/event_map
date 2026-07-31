@@ -1,12 +1,12 @@
 ﻿{
-  "name": "Hamamatsu_Event_Map",
-  "short_name": "Event_Map",
-  "description": "Hamamatsu event map.",
+  "name": "浜松、今日は何する？｜浜松市 イベントマップ",
+  "short_name": "浜松イベント",
+  "description": "浜松のイベントを日付・カテゴリ・地図から楽しく探してシェアできるイベントマップです。",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#f8fafc",
-  "theme_color": "#1d4ed8",
+  "background_color": "#fff8e8",
+  "theme_color": "#ff5a36",
   "icons": [
     {
       "src": "assets/icons/icon-192.png",

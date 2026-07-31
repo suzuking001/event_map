@@ -47,18 +47,413 @@
   const visibleCount = document.getElementById("visible-count");
   const totalCount = document.getElementById("total-count");
   const dataRefreshStatus = document.getElementById("data-refresh-status");
+  const floatingVisibleCount = document.getElementById("floating-visible-count");
+  const shareMapButton = document.getElementById("share-map");
+  const shareToast = document.getElementById("share-toast");
+  const shareSheet = document.getElementById("share-sheet");
+  const shareSheetClose = document.getElementById("share-sheet-close");
+  const shareSheetDescription = document.getElementById("share-sheet-description");
+  const shareToX = document.getElementById("share-to-x");
+  const shareToFacebook = document.getElementById("share-to-facebook");
+  const shareToInstagram = document.getElementById("share-to-instagram");
+  const shareCopyLink = document.getElementById("share-copy-link");
+  const shareNative = document.getElementById("share-native");
+
+  const SHARE_PARAM_KEYS = ["from", "to", "q", "cat", "event"];
+  let shareToastTimer = null;
+  let activeSharePayload = null;
+  let shareReturnFocus = null;
+
+  const replaceLocationUrl = update => {
+    if (location.protocol === "file:") return;
+    const url = new URL(window.location.href);
+    update(url);
+    window.history.replaceState(null, "", url);
+  };
+
+  const setEventUrl = eventId => {
+    replaceLocationUrl(url => {
+      url.searchParams.delete("event");
+      if (eventId) url.searchParams.set("event", eventId);
+    });
+  };
+
+  const showShareToast = message => {
+    if (!shareToast) return;
+    if (shareToastTimer) window.clearTimeout(shareToastTimer);
+    shareToast.textContent = message;
+    shareToast.setAttribute("aria-hidden", "false");
+    shareToast.classList.add("open");
+    shareToastTimer = window.setTimeout(() => {
+      shareToast.classList.remove("open");
+      shareToast.setAttribute("aria-hidden", "true");
+    }, 2800);
+  };
+
+  const copyShareUrl = async url => {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(url);
+      return;
+    }
+    const input = document.createElement("textarea");
+    input.value = url;
+    input.setAttribute("readonly", "");
+    input.style.position = "fixed";
+    input.style.opacity = "0";
+    document.body.appendChild(input);
+    input.select();
+    const copied = document.execCommand("copy");
+    input.remove();
+    if (!copied) throw new Error("Copy command failed");
+  };
+
+  const loadCanvasImage = src => new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = reject;
+    image.src = src;
+  });
+
+  const roundedRectPath = (context, x, y, width, height, radius) => {
+    const r = Math.min(radius, width / 2, height / 2);
+    context.beginPath();
+    context.moveTo(x + r, y);
+    context.arcTo(x + width, y, x + width, y + height, r);
+    context.arcTo(x + width, y + height, x, y + height, r);
+    context.arcTo(x, y + height, x, y, r);
+    context.arcTo(x, y, x + width, y, r);
+    context.closePath();
+  };
+
+  const drawWrappedCanvasText = (
+    context,
+    text,
+    x,
+    y,
+    maxWidth,
+    lineHeight,
+    maxLines
+  ) => {
+    const characters = Array.from(String(text || ""));
+    const lines = [];
+    let line = "";
+    characters.forEach(character => {
+      const candidate = `${line}${character}`;
+      if (line && context.measureText(candidate).width > maxWidth) {
+        lines.push(line);
+        line = character;
+      } else {
+        line = candidate;
+      }
+    });
+    if (line) lines.push(line);
+    const visibleLines = lines.slice(0, maxLines);
+    if (lines.length > maxLines && visibleLines.length > 0) {
+      let lastLine = visibleLines[visibleLines.length - 1];
+      while (lastLine && context.measureText(`${lastLine}…`).width > maxWidth) {
+        lastLine = lastLine.slice(0, -1);
+      }
+      visibleLines[visibleLines.length - 1] = `${lastLine}…`;
+    }
+    visibleLines.forEach((value, index) => {
+      context.fillText(value, x, y + index * lineHeight);
+    });
+    return y + visibleLines.length * lineHeight;
+  };
+
+  const buildInstagramStoryBlob = async payload => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 1080;
+    canvas.height = 1920;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Canvas is not supported");
+
+    context.fillStyle = "#fff8e8";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = "#ffd33d";
+    context.beginPath();
+    context.arc(945, 55, 235, 0, Math.PI * 2);
+    context.fill();
+    context.fillStyle = "#20c7b5";
+    context.beginPath();
+    context.arc(90, 1840, 260, 0, Math.PI * 2);
+    context.fill();
+    context.fillStyle = "#39a8ff";
+    context.beginPath();
+    context.arc(1040, 1740, 290, 0, Math.PI * 2);
+    context.fill();
+
+    context.fillStyle = "#ff5a36";
+    context.font = "900 27px sans-serif";
+    context.letterSpacing = "2px";
+    context.fillText("WEEKEND EVENT MAP", 76, 104);
+    context.letterSpacing = "0px";
+
+    try {
+      const mascot = await loadCanvasImage("assets/icons/icon-512.png");
+      context.save();
+      context.translate(740, 105);
+      context.rotate(0.045);
+      context.drawImage(mascot, 0, 0, 270, 270);
+      context.restore();
+    } catch (error) {
+      console.warn("Instagram story mascot could not be loaded.", error);
+    }
+
+    context.fillStyle = "#18314f";
+    context.font = "900 61px sans-serif";
+    context.fillText("今日は何する？", 76, 245);
+
+    const visual = payload.visual || {};
+    const category = visual.category || "イベント";
+    roundedRectPath(context, 76, 360, Math.min(760, 110 + category.length * 38), 70, 35);
+    context.fillStyle = "#ffd33d";
+    context.fill();
+    context.lineWidth = 4;
+    context.strokeStyle = "#18314f";
+    context.stroke();
+    context.fillStyle = "#18314f";
+    context.font = "900 31px sans-serif";
+    context.fillText(`${visual.icon || "📍"} ${category}`, 106, 407);
+
+    context.save();
+    context.shadowColor = "rgba(24, 49, 79, 0.18)";
+    context.shadowOffsetY = 16;
+    context.shadowBlur = 0;
+    roundedRectPath(context, 62, 478, 956, 990, 48);
+    context.fillStyle = "#fffdf7";
+    context.fill();
+    context.lineWidth = 6;
+    context.strokeStyle = "#18314f";
+    context.stroke();
+    context.restore();
+
+    const title = visual.title || payload.title || "イベントを探そう";
+    const titleFontSize = title.length > 40 ? 49 : title.length > 24 ? 57 : 68;
+    context.fillStyle = "#18314f";
+    context.font = `900 ${titleFontSize}px sans-serif`;
+    let contentY = drawWrappedCanvasText(
+      context,
+      title,
+      112,
+      590,
+      850,
+      titleFontSize * 1.35,
+      6
+    );
+    contentY += 38;
+
+    const infoRows = [
+      ["開催日", visual.date || "イベント情報を地図でチェック"],
+      ["会場", visual.place || "開催地を地図でチェック"],
+    ];
+    infoRows.forEach(([label, value]) => {
+      roundedRectPath(context, 112, contentY, 856, 142, 28);
+      context.fillStyle = "#fff8e8";
+      context.fill();
+      context.fillStyle = "#66798b";
+      context.font = "800 24px sans-serif";
+      context.fillText(label, 146, contentY + 43);
+      context.fillStyle = "#18314f";
+      context.font = "900 35px sans-serif";
+      drawWrappedCanvasText(context, value, 146, contentY + 93, 785, 44, 2);
+      contentY += 164;
+    });
+
+    roundedRectPath(context, 62, 1540, 956, 252, 48);
+    context.fillStyle = "#ff5a36";
+    context.fill();
+    context.lineWidth = 6;
+    context.strokeStyle = "#18314f";
+    context.stroke();
+    context.fillStyle = "#fff";
+    context.font = "900 43px sans-serif";
+    context.fillText("イベントマップ", 112, 1630);
+    context.font = "800 29px sans-serif";
+    context.fillText("リンクはコピー済み。ストーリーズで", 112, 1692);
+    context.fillText("リンクスタンプに貼り付けてね！", 112, 1737);
+
+    let displayUrl = "suzuking001.github.io/event_map/";
+    try {
+      const url = new URL(payload.url);
+      displayUrl = `${url.host}${url.pathname}`;
+    } catch (error) {
+      displayUrl = payload.url;
+    }
+    context.fillStyle = "#18314f";
+    context.font = "800 22px sans-serif";
+    context.fillText(displayUrl.slice(0, 64), 292, 1865);
+    context.font = "900 32px sans-serif";
+    context.fillText("📍", 245, 1867);
+
+    return new Promise((resolve, reject) => {
+      canvas.toBlob(blob => {
+        if (blob) resolve(blob);
+        else reject(new Error("Instagram story image could not be created"));
+      }, "image/png");
+    });
+  };
+
+  const downloadBlob = (blob, filename) => {
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  const setShareSheetOpen = (isOpen, payload = null, trigger = null) => {
+    if (!shareSheet) return;
+    const sideMenu = document.getElementById("side-menu");
+    if (isOpen) {
+      activeSharePayload = payload;
+      shareReturnFocus = trigger;
+      if (shareSheetDescription) {
+        shareSheetDescription.textContent = payload ? payload.title : "";
+      }
+      if (shareNative) shareNative.hidden = typeof navigator.share !== "function";
+      if (sideMenu) sideMenu.inert = true;
+      if (detailsModal) detailsModal.inert = true;
+      shareSheet.inert = false;
+      shareSheet.setAttribute("aria-hidden", "false");
+      shareSheet.classList.add("open");
+      if (shareToX) shareToX.focus();
+      return;
+    }
+    shareSheet.classList.remove("open");
+    shareSheet.setAttribute("aria-hidden", "true");
+    shareSheet.inert = true;
+    if (sideMenu) sideMenu.inert = !sideMenu.classList.contains("open");
+    if (detailsModal) detailsModal.inert = !detailsModal.classList.contains("open");
+    const focusTarget = shareReturnFocus;
+    activeSharePayload = null;
+    shareReturnFocus = null;
+    if (focusTarget && document.contains(focusTarget)) focusTarget.focus();
+  };
+
+  const copyActiveShareUrl = async () => {
+    if (!activeSharePayload) return;
+    try {
+      await copyShareUrl(activeSharePayload.url);
+      setShareSheetOpen(false);
+      showShareToast("リンクをコピーしました！");
+    } catch (error) {
+      console.warn("Share URL copy failed.", error);
+      showShareToast("コピーできませんでした。URL欄から共有してください。");
+    }
+  };
+
+  if (shareToX) {
+    shareToX.addEventListener("click", () => {
+      if (!activeSharePayload) return;
+      const postText = `${activeSharePayload.text}\n${activeSharePayload.url}`;
+      window.open(
+        `https://x.com/intent/post?text=${encodeURIComponent(postText)}`,
+        "_blank",
+        "noopener,noreferrer,width=680,height=640"
+      );
+      setShareSheetOpen(false);
+    });
+  }
+  if (shareToFacebook) {
+    shareToFacebook.addEventListener("click", () => {
+      if (!activeSharePayload) return;
+      window.open(
+        `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(activeSharePayload.url)}`,
+        "_blank",
+        "noopener,noreferrer,width=680,height=720"
+      );
+      setShareSheetOpen(false);
+    });
+  }
+  if (shareToInstagram) {
+    shareToInstagram.addEventListener("click", async () => {
+      if (!activeSharePayload || shareToInstagram.disabled) return;
+      const payload = activeSharePayload;
+      const label = shareToInstagram.querySelector("strong");
+      const previousLabel = label ? label.textContent : "";
+      shareToInstagram.disabled = true;
+      shareToInstagram.setAttribute("aria-busy", "true");
+      if (label) label.textContent = "画像を作成しています…";
+      let linkCopied = false;
+      try {
+        try {
+          await copyShareUrl(payload.url);
+          linkCopied = true;
+        } catch (error) {
+          console.warn("Instagram share URL copy failed.", error);
+        }
+        const blob = await buildInstagramStoryBlob(payload);
+        const rawId = payload.visual && payload.visual.id
+          ? String(payload.visual.id)
+          : "map";
+        const safeId = rawId.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 36) || "map";
+        downloadBlob(blob, `event-map-${safeId}-story.png`);
+        setShareSheetOpen(false);
+        showShareToast(
+          linkCopied
+            ? "ストーリーズ画像を保存し、リンクをコピーしました！"
+            : "ストーリーズ画像を保存しました。リンクは別途コピーしてください。"
+        );
+      } catch (error) {
+        console.error("Instagram story image generation failed.", error);
+        showShareToast("Instagram用画像を作成できませんでした。");
+      } finally {
+        shareToInstagram.disabled = false;
+        shareToInstagram.removeAttribute("aria-busy");
+        if (label) label.textContent = previousLabel;
+      }
+    });
+  }
+  if (shareCopyLink) {
+    shareCopyLink.addEventListener("click", () => {
+      void copyActiveShareUrl();
+    });
+  }
+  if (shareNative) {
+    shareNative.addEventListener("click", async () => {
+      if (!activeSharePayload || !navigator.share) return;
+      try {
+        await navigator.share(activeSharePayload);
+        setShareSheetOpen(false);
+      } catch (error) {
+        if (!error || error.name !== "AbortError") {
+          console.warn("Native share failed.", error);
+          showShareToast("端末の共有メニューを開けませんでした。");
+        }
+      }
+    });
+  }
+  if (shareSheetClose) {
+    shareSheetClose.addEventListener("click", () => setShareSheetOpen(false));
+  }
+  if (shareSheet) {
+    shareSheet.addEventListener("click", event => {
+      if (event.target === shareSheet) setShareSheetOpen(false);
+    });
+    document.addEventListener("keydown", event => {
+      if (event.key === "Escape" && shareSheet.classList.contains("open")) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        setShareSheetOpen(false);
+      }
+    });
+  }
 
   const CATEGORY_PALETTE = [
-    "#2563eb",
-    "#10b981",
-    "#f97316",
-    "#ef4444",
-    "#0ea5e9",
-    "#22c55e",
+    "#ff5a36",
+    "#20c7b5",
+    "#39a8ff",
     "#f59e0b",
-    "#14b8a6",
-    "#e11d48",
-    "#84cc16",
+    "#ef476f",
+    "#8b5cf6",
+    "#16a34a",
+    "#e879f9",
+    "#f97316",
+    "#06b6d4",
   ];
 
   const CATEGORY_ICON_RULES = [
@@ -122,6 +517,21 @@
     if (!value) return null;
     const trimmed = String(value).trim();
     if (!trimmed) return null;
+    const dateParts = trimmed.match(/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})/);
+    if (dateParts) {
+      const year = Number(dateParts[1]);
+      const month = Number(dateParts[2]);
+      const day = Number(dateParts[3]);
+      const date = new Date(year, month - 1, day);
+      if (
+        date.getFullYear() !== year ||
+        date.getMonth() !== month - 1 ||
+        date.getDate() !== day
+      ) {
+        return null;
+      }
+      return date.getTime();
+    }
     const date = new Date(`${trimmed}T00:00:00`);
     return Number.isNaN(date.getTime()) ? null : date.getTime();
   };
@@ -168,6 +578,23 @@
     return "日程未設定";
   };
 
+  const parseOccurrenceDates = value => Array.from(new Set(
+    String(value || "")
+      .split(/[;；\r\n]+/)
+      .map(date => date.trim())
+      .filter(date => parseDateValue(date) != null)
+  )).sort((left, right) => parseDateValue(left) - parseDateValue(right));
+
+  const formatEventDate = event => {
+    const occurrenceDates = event.occurrenceDates || [];
+    if (occurrenceDates.length === 0) {
+      return formatDateRange(event.startDate, event.endDate);
+    }
+    const visibleDates = occurrenceDates.slice(0, 4);
+    const remaining = occurrenceDates.length - visibleDates.length;
+    return `${visibleDates.join("、")}${remaining > 0 ? ` ほか${remaining}日` : ""}`;
+  };
+
   const formatTimeRange = (start, end) => {
     const startText = start ? String(start).trim() : "";
     const endText = end ? String(end).trim() : "";
@@ -203,9 +630,37 @@
     const raw = value ? String(value).trim() : "";
     if (!raw) return ["未分類"];
     // "・" is part of official category names such as "講座・教室".
-    const parts = raw.split(/[、/／]/).map(item => item.trim()).filter(Boolean);
+    const parts = raw.split(/[;；、/／]/).map(item => item.trim()).filter(Boolean);
     return parts.length ? parts : [raw];
   };
+
+  const SOURCE_DETAIL_FIELDS = new Set([
+    "_sourceId",
+    "_sourceType",
+    "_sourceName",
+    "_sourceAreaName",
+    "_sourceUrl",
+    "_sourceLicenseName",
+    "_sourceLicenseUrl",
+  ]);
+
+  const PRIMARY_DETAIL_FIELDS = new Set([
+    "NO",
+    "イベント名",
+    "開始日",
+    "終了日",
+    "開催日一覧",
+    "開始時間",
+    "終了時間",
+    "説明",
+    "場所名称",
+    "地方公共団体名",
+    "カテゴリー",
+    "緯度",
+    "経度",
+    "URL",
+    ...SOURCE_DETAIL_FIELDS,
+  ]);
 
   const buildSearchText = fields => {
     const parts = [
@@ -215,8 +670,18 @@
       fields["場所名称"],
       fields["説明"],
       fields["住所"],
+      fields["所在地_連結表記"],
+      fields["所在地_都道府県"],
+      fields["所在地_市区町村"],
+      fields["地方公共団体名"],
       fields["主催者"],
       fields["カテゴリー"],
+      fields["タグ"],
+      fields["イベント種類"],
+      fields["開催区"],
+      fields["対象者"],
+      fields._sourceName,
+      fields._sourceAreaName,
       fields["区"],
       fields["備考"],
     ]
@@ -242,45 +707,85 @@
   const buildDetailsHtml = (event, headers) => {
     const rawUrl = event.fields.URL || "";
     const normalizedUrl = normalizeUrl(rawUrl);
-    const urlButton = normalizedUrl
-      ? `<a class="details-link-button" href="${escapeValue(normalizedUrl)}" target="_blank" rel="noopener">WEBページを開く</a>`
-      : `<button class="details-link-button" type="button" disabled>WEBページなし</button>`;
     const faviconUrl = getFaviconUrl(rawUrl);
     const faviconHtml = faviconUrl
       ? `<img class="details-favicon" src="${escapeValue(faviconUrl)}" alt="WEBサイトのアイコン" loading="lazy" referrerpolicy="no-referrer">`
       : "";
-    const searchQuery = `浜松市 ${event.name || "イベント"}`;
+    const urlButton = normalizedUrl
+      ? `<a class="details-link-button" href="${escapeValue(normalizedUrl)}" target="_blank" rel="noopener">${faviconHtml}<span>参照元ページを開く</span></a>`
+      : `<button class="details-link-button" type="button" disabled>参照元ページなし</button>`;
+    const eventArea = event.fields["地方公共団体名"] ||
+      event.fields["所在地_市区町村"] ||
+      event.fields["所在地_都道府県"] ||
+      event.fields._sourceName ||
+      "浜松市";
+    const searchQuery = `${eventArea} ${event.name || "イベント"}`;
     const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`;
-    const searchButton = `<a class="details-link-button" href="${searchUrl}" target="_blank" rel="noopener">Googleで検索</a>`;
-    const dateRange = formatDateRange(event.startDate, event.endDate);
+    const searchButton = `<a class="details-link-button details-link-button-secondary" href="${searchUrl}" target="_blank" rel="noopener">Googleで検索</a>`;
+    const dateRange = formatEventDate(event);
     const timeRange = formatTimeRange(event.startTime, event.endTime);
-    const categoryText = event.categories.join(" / ");
+    const description = String(event.fields["説明"] || "").trim();
+    const isWebReferenced = event.fields._sourceType === "web" ||
+      /^WEB/i.test(String(event.fields.NO || "").trim())
+      || /^Web収集:/i.test(String(event.fields["備考"] || "").trim());
+    let sourceHost = "";
+    if (isWebReferenced && normalizedUrl) {
+      try {
+        sourceHost = new URL(normalizedUrl).hostname;
+      } catch (error) {
+        sourceHost = "";
+      }
+    }
+    const sourceName = event.fields._sourceName || "浜松市オープンデータ「イベント」";
+    const sourceUrl = normalizeUrl(event.fields._sourceUrl || "");
+    const sourceLicenseName = event.fields._sourceLicenseName || "";
+    const sourceLicenseUrl = normalizeUrl(event.fields._sourceLicenseUrl || "");
+    const sourceNameHtml = sourceUrl
+      ? `<a href="${escapeValue(sourceUrl)}" target="_blank" rel="noopener">${escapeValue(sourceName)}</a>`
+      : escapeValue(sourceName);
+    const sourceLicenseHtml = sourceLicenseName
+      ? sourceLicenseUrl
+        ? `<a href="${escapeValue(sourceLicenseUrl)}" target="_blank" rel="noopener">${escapeValue(sourceLicenseName)}</a>`
+        : escapeValue(sourceLicenseName)
+      : "各提供元の利用条件をご確認ください";
+    const sourceNoticeHtml = isWebReferenced
+      ? `
+        <div class="details-source-notice details-source-notice-web">
+          <strong>情報源：ウェブ参照情報${sourceHost ? `（${escapeValue(sourceHost)}）` : ""}</strong>
+          <span>このイベントは自治体等のオープンデータではなく、各オープンデータライセンスの対象外です。参照元の権利・利用条件をご確認ください。</span>
+        </div>
+      `
+      : `
+        <div class="details-source-notice details-source-notice-open-data">
+          <strong>情報源：${sourceNameHtml}</strong>
+          <span>${sourceLicenseHtml}（本アプリ向けに抽出・整形）</span>
+        </div>
+      `;
 
-    const summaryLines = [
-      `期間: ${escapeValue(dateRange)}`,
-      timeRange ? `時間: ${escapeValue(timeRange)}` : "",
-      categoryText ? `カテゴリ: ${escapeValue(categoryText)}` : "",
-      event.place ? `会場: ${escapeValue(event.place)}` : "",
-    ].filter(Boolean);
-
-    const summaryHtml = summaryLines.length
-      ? `<div class="details-summary">${summaryLines
-          .map(line => `<div>${line}</div>`)
-          .join("")}</div>`
-      : "";
+    const categoryChips = event.categories
+      .map(category => `<span class="event-category-chip">${escapeValue(getCategoryIcon(category))} ${escapeValue(category)}</span>`)
+      .join("");
+    const metaItems = [
+      ["地域", eventArea],
+      ["開催日", dateRange],
+      ["時間", timeRange],
+      ["会場", event.place],
+    ]
+      .filter(([, value]) => value)
+      .map(([label, value]) => `
+        <div class="event-meta-item">
+          <dt>${escapeValue(label)}</dt>
+          <dd>${escapeValue(value)}</dd>
+        </div>
+      `)
+      .join("");
 
     const rowsHtml = headers
+      .filter(header => !PRIMARY_DETAIL_FIELDS.has(header))
       .map(header => {
         const rawValue = event.fields[header] || "";
+        if (!String(rawValue).trim()) return "";
         let valueHtml = escapeValue(rawValue).replace(/\r?\n/g, "<br>");
-        if (header === "URL") {
-          const normalizedValue = normalizeUrl(rawValue);
-          valueHtml = normalizedValue
-            ? `<a href="${escapeValue(normalizedValue)}" target="_blank" rel="noopener">${escapeValue(rawValue)}</a>`
-            : "未記載";
-        } else if (!valueHtml) {
-          valueHtml = "未記載";
-        }
         return `
           <div class="detail-row">
             <div class="detail-label">${escapeValue(header)}</div>
@@ -291,9 +796,27 @@
       .join("");
 
     return `
-      <div class="details-actions">${faviconHtml}${urlButton}${searchButton}</div>
-      ${summaryHtml}
-      <div class="details-grid">${rowsHtml}</div>
+      <article class="event-detail-card" style="--event-color: ${escapeValue(event.strokeColor)}; --event-soft-color: ${escapeValue(event.fillColor)}">
+        <div class="event-detail-hero" data-icon="${escapeValue(event.categoryIcon)}">
+          <div class="event-category-chips">${categoryChips}</div>
+          ${description ? `<p class="event-description">${escapeValue(description).replace(/\r?\n/g, "<br>")}</p>` : ""}
+          <dl class="event-meta-grid">${metaItems}</dl>
+        </div>
+        <div class="details-actions">
+          <button class="event-share-button" type="button" data-share-event="${escapeValue(event.id)}">
+            <span aria-hidden="true">↗</span> このイベントをシェア
+          </button>
+          ${urlButton}
+          ${searchButton}
+        </div>
+        <details class="event-more">
+          <summary>詳しい情報・情報源</summary>
+          <div class="event-more-content">
+            ${sourceNoticeHtml}
+            ${rowsHtml ? `<div class="details-grid">${rowsHtml}</div>` : ""}
+          </div>
+        </details>
+      </article>
     `;
   };
 
@@ -312,11 +835,11 @@
     const place = getEventGroupPlace(events);
     const rows = events
       .map((event, index) => `
-        <button class="event-group-list-item" type="button" data-group-event-index="${index}">
+        <button class="event-group-list-item" type="button" data-group-event-index="${index}" style="--event-color: ${escapeValue(event.strokeColor)}; --event-soft-color: ${escapeValue(event.fillColor)}">
           <span class="event-group-list-icon" aria-hidden="true">${escapeValue(event.categoryIcon)}</span>
           <span class="event-group-list-copy">
             <strong>${escapeValue(event.name)}</strong>
-            <span>${escapeValue(formatDateRange(event.startDate, event.endDate))}・${escapeValue(
+            <span>${escapeValue(formatEventDate(event))}・${escapeValue(
               event.primaryCategory
             )}</span>
             ${event.place && event.place !== place ? `<small>${escapeValue(event.place)}</small>` : ""}
@@ -364,7 +887,7 @@
     dataRefreshStatus.dataset.state = state;
   };
 
-  const setDetailsOpen = (isOpen, htmlContent = "", titleText = "") => {
+  const setDetailsOpen = (isOpen, htmlContent = "", titleText = "", eventId = "") => {
     if (!detailsModal || !detailsBody) {
       return;
     }
@@ -373,12 +896,14 @@
         detailsTitle.textContent = titleText || "イベント詳細";
       }
       detailsBody.innerHTML = htmlContent;
+      detailsModal.dataset.eventId = eventId;
+      setEventUrl(eventId);
       detailsModal.inert = false;
       detailsModal.setAttribute("aria-hidden", "false");
+      detailsModal.classList.toggle("open", true);
       if (detailsClose) {
         detailsClose.focus();
       }
-      detailsModal.classList.toggle("open", true);
       return;
     }
     if (detailsModal.contains(document.activeElement) && menuToggle) {
@@ -387,6 +912,8 @@
     detailsModal.classList.toggle("open", false);
     detailsModal.setAttribute("aria-hidden", "true");
     detailsModal.inert = true;
+    detailsModal.dataset.eventId = "";
+    setEventUrl("");
   };
 
   const setAboutOpen = isOpen => {
@@ -504,10 +1031,195 @@
       worker.postMessage({ id: requestId, url, encoding });
     });
 
+
+  const stringifyApiValue = value => {
+    if (value == null) return "";
+    if (Array.isArray(value)) return value.filter(Boolean).join(";");
+    if (typeof value === "object") return JSON.stringify(value);
+    return String(value);
+  };
+
+  const getTokyoTodayValue = () => {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Tokyo",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(new Date());
+    const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+    return parseDateValue(`${values.year}-${values.month}-${values.day}`);
+  };
+
+  const getTokyoTodayString = (separator = "-") => {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Tokyo",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(new Date());
+    const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+    return [values.year, values.month, values.day].join(separator);
+  };
+
+  const fetchJsonp = (requestUrl, callbackParameter = "callback") =>
+    new Promise((resolve, reject) => {
+      const callbackName = `__eventMapJsonp_${buildWorkerId().replace(/[^a-zA-Z0-9_]/g, "")}`;
+      const url = new URL(requestUrl, window.location.href);
+      url.searchParams.set(callbackParameter, callbackName);
+      const script = document.createElement("script");
+      let timeoutId = null;
+
+      const cleanup = () => {
+        if (timeoutId) window.clearTimeout(timeoutId);
+        script.remove();
+        try {
+          delete window[callbackName];
+        } catch (error) {
+          window[callbackName] = undefined;
+        }
+      };
+
+      window[callbackName] = data => {
+        cleanup();
+        resolve(data);
+      };
+      script.async = true;
+      script.src = url.toString();
+      script.onerror = () => {
+        cleanup();
+        reject(new Error("CKAN JSONP request failed."));
+      };
+      timeoutId = window.setTimeout(() => {
+        cleanup();
+        reject(new Error("CKAN JSONP request timed out."));
+      }, 20000);
+      document.head.appendChild(script);
+    });
+
+  const fetchCkanEventPage = async url => {
+    const data = await fetchJsonp(url);
+    const result = data && data.success && data.result;
+    if (!result || !Array.isArray(result.records) || !Array.isArray(result.fields)) {
+      throw new Error("CKAN API returned an unexpected response.");
+    }
+    return {
+      headers: result.fields.map(field => field.id).filter(header => header !== "_id"),
+      records: result.records,
+      totalCount: Number(result.total) || result.records.length,
+    };
+  };
+
+  const applySourceFieldMap = (fields, source) => {
+    const mapped = { ...fields };
+    if (source.lineBreakToken) {
+      Object.keys(mapped).forEach(key => {
+        if (typeof mapped[key] === "string") {
+          mapped[key] = mapped[key].split(source.lineBreakToken).join("\n");
+        }
+      });
+    }
+    Object.entries(source.fieldMap || {}).forEach(([target, candidates]) => {
+      if (mapped[target] != null && String(mapped[target]).trim()) return;
+      const sourceFields = Array.isArray(candidates) ? candidates : [candidates];
+      const matchedField = sourceFields.find(candidate =>
+        mapped[candidate] != null && String(mapped[candidate]).trim()
+      );
+      if (matchedField) mapped[target] = mapped[matchedField];
+    });
+    return mapped;
+  };
+
+  const buildCkanEventPayload = (source, headers, records) => {
+    const mappedRecords = records.map(record => applySourceFieldMap(record, source));
+    const todayValue = getTokyoTodayValue();
+    const filteredRecords = source.currentAndFutureOnly
+      ? mappedRecords.filter(record => {
+          const eventEndValue = parseDateValue(record["終了日"] || record["開始日"] || "");
+          return eventEndValue != null && eventEndValue >= todayValue;
+        })
+      : mappedRecords;
+    const minimumRows = Number(source.minimumRows) || 1;
+    if (filteredRecords.length < minimumRows) {
+      throw new Error(
+        `${source.sourceName || source.id}: only ${filteredRecords.length} events were returned.`
+      );
+    }
+
+    const outputHeaders = Array.isArray(source.outputFields) && source.outputFields.length
+      ? [...source.outputFields]
+      : [...headers];
+    Object.keys(source.fieldMap || {}).forEach(header => {
+      if (!outputHeaders.includes(header)) outputHeaders.push(header);
+    });
+
+    return {
+      headers: outputHeaders,
+      rows: filteredRecords.map(record =>
+        outputHeaders.map(header => stringifyApiValue(record[header]))
+      ),
+      fingerprint: hashText(JSON.stringify(filteredRecords)),
+    };
+  };
+
+  const fetchCkanEventPayload = async (source, initialUrl) => {
+    const pageSize = 1000;
+    const firstPage = await fetchCkanEventPage(initialUrl);
+    const records = [...firstPage.records];
+    for (let offset = records.length; offset < firstPage.totalCount; offset += pageSize) {
+      const nextUrl = new URL(initialUrl, window.location.href);
+      nextUrl.searchParams.set("limit", String(pageSize));
+      nextUrl.searchParams.set("offset", String(offset));
+      const nextPage = await fetchCkanEventPage(nextUrl.toString());
+      records.push(...nextPage.records);
+      if (nextPage.records.length === 0) break;
+    }
+
+    return buildCkanEventPayload(source, firstPage.headers, records);
+  };
+
+  const quoteSqlIdentifier = value => `"${String(value).replace(/"/g, '""')}"`;
+
+  const buildCkanSqlEventUrl = (source, limit, offset) => {
+    const resource = quoteSqlIdentifier(source.resourceId);
+    const startField = quoteSqlIdentifier(source.dateFields.start);
+    const endField = quoteSqlIdentifier(source.dateFields.end);
+    const today = getTokyoTodayString(source.dateSeparator || "-");
+    const sql = [
+      `SELECT * FROM ${resource}`,
+      `WHERE (${endField} >= '${today}'`,
+      `OR ((${endField} = '' OR ${endField} = '0000/00/00')`,
+      `AND ${startField} >= '${today}'))`,
+      `ORDER BY ${startField}`,
+      `LIMIT ${limit} OFFSET ${offset}`,
+    ].join(" ");
+    const url = new URL(source.url, window.location.href);
+    url.searchParams.set("sql", sql);
+    return url.toString();
+  };
+
+  const fetchCkanSqlEventPayload = async source => {
+    const pageSize = 1000;
+    const records = [];
+    let headers = [];
+    for (let offset = 0; ; offset += pageSize) {
+      const page = await fetchCkanEventPage(buildCkanSqlEventUrl(source, pageSize, offset));
+      if (!headers.length) headers = page.headers;
+      records.push(...page.records);
+      if (page.records.length < pageSize) break;
+    }
+    return buildCkanEventPayload(source, headers, records);
+  };
+
   const fetchAndParseEvents = async (source, forceRefresh = false) => {
     const url = forceRefresh && source.refresh
       ? buildFreshCsvUrl(source.url)
       : source.url;
+    if (source.format === "ckan-jsonp") {
+      return fetchCkanEventPayload(source, url);
+    }
+    if (source.format === "ckan-sql-jsonp") {
+      return fetchCkanSqlEventPayload(source);
+    }
     const encoding = source.encoding || "utf-8";
     if (window.Worker) {
       try {
@@ -520,10 +1232,38 @@
     return { ...parseCSV(csvText), fingerprint: hashText(csvText) };
   };
 
+  const normalizeSourceFields = (fields, source) => {
+    const normalized = applySourceFieldMap(fields, source);
+    normalized.NO = normalized.NO || normalized.ID || "";
+    normalized["カテゴリー"] = normalized["カテゴリー"] ||
+      normalized["キーワード"] ||
+      normalized["タグ"] ||
+      normalized["イベント種類"] ||
+      source.defaultCategory ||
+      "未分類";
+    normalized.URL = normalized.URL ||
+      normalized["コンテンツURL"] ||
+      normalized["申込URL"] ||
+      "";
+    normalized["住所"] = normalized["住所"] || normalized["所在地_連結表記"] || "";
+    normalized["説明"] = normalized["説明"] || normalized["概要"] || "";
+    normalized["地方公共団体名"] = normalized["地方公共団体名"] || source.areaName || "";
+    normalized._sourceId = source.id || "";
+    normalized._sourceType = source.sourceType || "open-data";
+    normalized._sourceName = source.sourceName || "";
+    normalized._sourceAreaName = source.areaName || "";
+    normalized._sourceUrl = source.sourceUrl || "";
+    normalized._sourceLicenseName = source.licenseName || "";
+    normalized._sourceLicenseUrl = source.licenseUrl || "";
+    return normalized;
+  };
+
   const getEventKey = fields => {
-    const id = String(fields.NO || "").trim();
-    if (id) return `id:${id}`;
+    const sourceId = String(fields._sourceId || "unknown").trim();
+    const id = String(fields.NO || fields.ID || "").trim();
+    if (id) return `${sourceId}:id:${id}`;
     return [
+      sourceId,
       fields["イベント名"],
       fields["開始日"],
       fields["終了日"],
@@ -543,23 +1283,34 @@
         mergedHeaders.push(header);
       });
     });
+    SOURCE_DETAIL_FIELDS.forEach(header => {
+      if (headerSet.has(header)) return;
+      headerSet.add(header);
+      mergedHeaders.push(header);
+    });
+    ["NO", "カテゴリー", "URL", "住所", "説明"].forEach(header => {
+      if (headerSet.has(header)) return;
+      headerSet.add(header);
+      mergedHeaders.push(header);
+    });
 
     const eventsByKey = new Map();
-    payloads.forEach(({ payload }) => {
+    payloads.forEach(({ source, payload }) => {
       payload.rows.forEach(row => {
         const fields = {};
         payload.headers.forEach((header, index) => {
           fields[header] = row[index] == null ? "" : row[index];
         });
-        const key = getEventKey(fields);
+        const normalizedFields = normalizeSourceFields(fields, source);
+        const key = getEventKey(normalizedFields);
         if (!eventsByKey.has(key)) {
-          eventsByKey.set(key, fields);
+          eventsByKey.set(key, normalizedFields);
           return;
         }
         const existing = eventsByKey.get(key);
         mergedHeaders.forEach(header => {
-          if (!existing[header] && fields[header]) {
-            existing[header] = fields[header];
+          if (!existing[header] && normalizedFields[header]) {
+            existing[header] = normalizedFields[header];
           }
         });
       });
@@ -576,32 +1327,6 @@
       headers: mergedHeaders,
       rows,
       fingerprint: hashText(fingerprintSource),
-    };
-  };
-
-  const loadEventSources = async (forceRefresh = false) => {
-    const results = await Promise.allSettled(
-      EVENT_CSV_SOURCES.map(source =>
-        fetchAndParseEvents(source, forceRefresh).then(payload => ({ source, payload }))
-      )
-    );
-    const loaded = results
-      .filter(result => result.status === "fulfilled")
-      .map(result => result.value);
-    const failedSources = results
-      .map((result, index) => ({ result, source: EVENT_CSV_SOURCES[index] }))
-      .filter(item => item.result.status === "rejected");
-
-    failedSources.forEach(({ result, source }) => {
-      console.warn(`Event CSV load failed: ${source.id}`, result.reason);
-    });
-    if (loaded.length === 0) {
-      throw new Error("すべてのイベントCSVを読み込めませんでした。");
-    }
-
-    return {
-      ...mergeEventPayloads(loaded),
-      failedSources,
     };
   };
 
@@ -727,6 +1452,8 @@
       const baseColor = getCategoryColor(name);
       swatch.style.backgroundColor = adjustColor(baseColor, 60);
       swatch.style.borderColor = adjustColor(baseColor, -24);
+      label.style.setProperty("--chip-color", adjustColor(baseColor, -24));
+      label.style.setProperty("--chip-background", adjustColor(baseColor, 70));
 
       const span = document.createElement("span");
       span.className = "menu-tag";
@@ -771,16 +1498,21 @@
 
   async function main() {
     setupMenuControls();
+    const initialParams = new URLSearchParams(window.location.search);
+    const initialEventId = initialParams.get("event") || "";
+    const hasInitialFilterState = ["from", "to", "q", "cat"]
+      .some(key => initialParams.has(key));
+    const hasEntryUrlState = Boolean(initialEventId || hasInitialFilterState);
     if (window.App.visitorCounter) {
       void window.App.visitorCounter.init();
     }
     try {
-      if (!sessionStorage.getItem("event-map-welcome-shown")) {
+      if (!hasEntryUrlState && !sessionStorage.getItem("event-map-welcome-shown")) {
         sessionStorage.setItem("event-map-welcome-shown", "1");
         setAboutOpen(true);
       }
     } catch (error) {
-      setAboutOpen(true);
+      if (!hasEntryUrlState) setAboutOpen(true);
     }
     if (dateRangeHint) {
       dateRangeHint.textContent = "データを読み込み中...";
@@ -888,14 +1620,178 @@
     });
 
     const isMobileViewport = window.innerWidth <= 768;
-    const LABEL_MIN_ZOOM = isMobileViewport ? 14 : 12;
-    const LABEL_FADE_MAX_ZOOM = isMobileViewport ? 16 : 15;
+    const LABEL_MIN_ZOOM = isMobileViewport ? 14 : 13;
+    const LABEL_FADE_MAX_ZOOM = 16;
     const MARKER_VIEW_PADDING = isMobileViewport ? 0.2 : 0.35;
+    const SOURCE_LOAD_VIEW_PADDING = 0.15;
+    const SOURCE_LOAD_MIN_VIEW_OVERLAP = 0.08;
     let headers = [];
     let events = [];
     let markers = [];
     let activeEventGroup = null;
     let currentFingerprint = "";
+    let initialUrlApplied = false;
+    let initialDataReady = false;
+    let sourceViewGeneration = 0;
+    let syncEventSourcesToViewport = null;
+    const loadedSourcePayloads = new Map();
+    const sourceLoadRequests = new Map();
+
+    const getSourceBounds = source =>
+      Array.isArray(source.loadBounds) && source.loadBounds.length === 2
+        ? L.latLngBounds(source.loadBounds)
+        : null;
+
+    const getSourcesForViewport = () => {
+      const visibleBounds = map.getBounds().pad(SOURCE_LOAD_VIEW_PADDING);
+      return EVENT_CSV_SOURCES.filter(source => {
+        const sourceBounds = getSourceBounds(source);
+        if (!sourceBounds) return true;
+        if (visibleBounds.contains(sourceBounds.getCenter())) return true;
+        if (!visibleBounds.intersects(sourceBounds)) return false;
+        const south = Math.max(visibleBounds.getSouth(), sourceBounds.getSouth());
+        const west = Math.max(visibleBounds.getWest(), sourceBounds.getWest());
+        const north = Math.min(visibleBounds.getNorth(), sourceBounds.getNorth());
+        const east = Math.min(visibleBounds.getEast(), sourceBounds.getEast());
+        const visibleArea = Math.max(
+          (visibleBounds.getNorth() - visibleBounds.getSouth()) *
+            (visibleBounds.getEast() - visibleBounds.getWest()),
+          Number.EPSILON
+        );
+        const overlapArea = Math.max(north - south, 0) * Math.max(east - west, 0);
+        return overlapArea / visibleArea >= SOURCE_LOAD_MIN_VIEW_OVERLAP;
+      });
+    };
+
+    const findSourceForSearch = query => {
+      const normalizedQuery = String(query || "").trim().toLowerCase();
+      if (!normalizedQuery) return null;
+      return EVENT_CSV_SOURCES.find(source =>
+        (source.searchKeywords || []).some(keyword =>
+          normalizedQuery.includes(String(keyword).toLowerCase())
+        )
+      ) || null;
+    };
+
+    const findSourceForEventId = eventId => {
+      const normalizedId = String(eventId || "");
+      if (!normalizedId) return null;
+      const matchedSource = EVENT_CSV_SOURCES.find(source =>
+        normalizedId.startsWith(`${source.id}:`)
+      );
+      if (matchedSource) return matchedSource;
+      return normalizedId.startsWith("event-")
+        ? EVENT_CSV_SOURCES.find(source => source.id === "hamamatsu-open-data") || null
+        : null;
+    };
+
+    const focusSourceArea = (source, animate = true) => {
+      const sourceBounds = getSourceBounds(source);
+      if (!sourceBounds) return false;
+      map.fitBounds(sourceBounds, {
+        animate,
+        padding: [40, 40],
+        maxZoom: 10,
+      });
+      return true;
+    };
+
+    const addFilterStateToUrl = url => {
+      if (dateStart && dateStart.value) url.searchParams.set("from", dateStart.value);
+      if (dateEnd && dateEnd.value) url.searchParams.set("to", dateEnd.value);
+      const query = searchInput ? searchInput.value.trim() : "";
+      if (query) url.searchParams.set("q", query);
+
+      if (categoryFilters) {
+        const inputs = Array.from(
+          categoryFilters.querySelectorAll("input[type='checkbox']")
+        );
+        const selected = inputs.filter(input => input.checked);
+        if (selected.length !== inputs.length) {
+          if (selected.length === 0) {
+            url.searchParams.append("cat", "");
+          } else {
+            selected.forEach(input => url.searchParams.append("cat", input.value));
+          }
+        }
+      }
+    };
+
+    const buildFilterShareUrl = () => {
+      const url = new URL(window.location.href);
+      SHARE_PARAM_KEYS.forEach(key => url.searchParams.delete(key));
+      addFilterStateToUrl(url);
+      url.hash = "";
+      return url.toString();
+    };
+
+    const buildEventShareUrl = eventId => {
+      const url = new URL(window.location.href);
+      SHARE_PARAM_KEYS.forEach(key => url.searchParams.delete(key));
+      url.searchParams.set("event", eventId);
+      url.hash = "";
+      return url.toString();
+    };
+
+    const syncFilterUrl = () => {
+      if (location.protocol === "file:") return;
+      replaceLocationUrl(url => {
+        const activeEventId = detailsModal ? detailsModal.dataset.eventId : "";
+        ["from", "to", "q", "cat"].forEach(key => url.searchParams.delete(key));
+        addFilterStateToUrl(url);
+        if (activeEventId) url.searchParams.set("event", activeEventId);
+      });
+    };
+
+    const shareEvent = (eventId, trigger) => {
+      const selectedEvent = events.find(event => event.id === eventId);
+      if (!selectedEvent) {
+        showShareToast("イベント情報を確認できませんでした。");
+        return;
+      }
+      const details = [
+        formatEventDate(selectedEvent),
+        selectedEvent.place,
+      ].filter(Boolean).join("・");
+      const selectedArea = selectedEvent.fields["地方公共団体名"] ||
+        selectedEvent.fields["所在地_市区町村"] ||
+        selectedEvent.fields["所在地_都道府県"] ||
+        "開催地域";
+      setShareSheetOpen(true, {
+        title: `${selectedEvent.name}｜イベントマップ`,
+        text: `${selectedEvent.categoryIcon} ${selectedEvent.name}${details ? `\n${details}` : ""}`,
+        url: buildEventShareUrl(selectedEvent.id),
+        visual: {
+          id: selectedEvent.id,
+          title: selectedEvent.name,
+          date: formatEventDate(selectedEvent),
+          place: selectedEvent.place || selectedArea,
+          category: selectedEvent.primaryCategory,
+          icon: selectedEvent.categoryIcon,
+        },
+      }, trigger);
+    };
+
+    if (shareMapButton) {
+      shareMapButton.addEventListener("click", () => {
+        const range = dateStart && dateEnd && (dateStart.value || dateEnd.value)
+          ? `${formatDateRange(dateStart.value, dateEnd.value)}のイベント`
+          : "イベント";
+        setShareSheetOpen(true, {
+          title: "今日は何する？｜イベントマップ",
+          text: `${range}を地図でチェック！`,
+          url: buildFilterShareUrl(),
+          visual: {
+            id: "map",
+            title: "今日は何する？",
+            date: range.replace(/のイベント$/, ""),
+            place: `${visibleCount ? visibleCount.textContent : "0"}件のイベントを地図でチェック`,
+            category: "イベント",
+            icon: "🎪",
+          },
+        }, shareMapButton);
+      });
+    }
 
     const buildEventData = (nextHeaders, rows) => {
       const events = [];
@@ -914,15 +1810,19 @@
         const endDate = fields["終了日"] || "";
         const startTime = fields["開始時間"] || "";
         const endTime = fields["終了時間"] || "";
-        const place = fields["場所名称"] || "";
+        const place = fields["場所名称"] || fields["集合（受付）場所"] || "";
         const lat = parseFloat(fields["緯度"]);
         const lon = parseFloat(fields["経度"]);
 
         const categories = normalizeCategories(fields["カテゴリー"]);
         const primaryCategory = categories[0] || "未分類";
         const baseColor = getCategoryColor(primaryCategory);
-        const startValue = parseDateValue(startDate);
-        const endValue = parseDateValue(endDate || startDate);
+        const occurrenceDates = parseOccurrenceDates(fields["開催日一覧"]);
+        const occurrenceValues = occurrenceDates
+          .map(date => parseDateValue(date))
+          .filter(value => value != null);
+        const startValue = occurrenceValues[0] ?? parseDateValue(startDate);
+        const endValue = occurrenceValues.at(-1) ?? parseDateValue(endDate || startDate);
 
         [startValue, endValue].forEach(value => {
           if (value == null) return;
@@ -937,7 +1837,11 @@
         });
 
         events.push({
-          id: fields["NO"] || `event-${rowIndex}`,
+          id: fields["NO"]
+            ? ["hamamatsu-open-data", "bundled-event-data"].includes(fields._sourceId)
+              ? fields["NO"]
+              : `${fields._sourceId || "event"}:${fields["NO"]}`
+            : `${fields._sourceId || "event"}:event-${rowIndex}`,
           name,
           startDate,
           endDate,
@@ -954,6 +1858,8 @@
           searchText: buildSearchText(fields),
           startValue,
           endValue: endValue || startValue,
+          occurrenceDates,
+          occurrenceValues,
           fields,
         });
       });
@@ -988,12 +1894,19 @@
       setDetailsOpen(
         true,
         buildDetailsHtml(event, headers),
-        event.name
+        event.name,
+        event.id
       );
     };
 
     if (detailsBody) {
       detailsBody.addEventListener("click", event => {
+        const shareButton = event.target.closest("[data-share-event]");
+        if (shareButton) {
+          shareEvent(shareButton.dataset.shareEvent || "", shareButton);
+          return;
+        }
+
         const eventButton = event.target.closest("[data-group-event-index]");
         if (eventButton && activeEventGroup) {
           const index = Number(eventButton.dataset.groupEventIndex);
@@ -1007,7 +1920,8 @@
           setDetailsOpen(
             true,
             `${backButton}${buildDetailsHtml(selectedEvent, headers)}`,
-            selectedEvent.name
+            selectedEvent.name,
+            selectedEvent.id
           );
           return;
         }
@@ -1080,8 +1994,8 @@
       const categoryNames = new Set(groupEvents.map(event => event.primaryCategory));
       const categoryNameList = Array.from(categoryNames);
       const usesSingleCategory = categoryNames.size === 1;
-      const fillColor = usesSingleCategory ? firstEvent.fillColor : "#dbeafe";
-      const strokeColor = usesSingleCategory ? firstEvent.strokeColor : "#2563eb";
+      const fillColor = usesSingleCategory ? firstEvent.fillColor : "#fff0bd";
+      const strokeColor = usesSingleCategory ? firstEvent.strokeColor : "#ff5a36";
       const displayCount = groupEvents.length > 99 ? "99+" : String(groupEvents.length);
       const place = getEventGroupPlace(groupEvents);
 
@@ -1135,7 +2049,7 @@
     const getStackedLabelOffset = () => [0, -25];
 
     const buildMarkerLabelHtml = event => {
-      const dateRange = formatDateRange(event.startDate, event.endDate);
+      const dateRange = formatEventDate(event);
       return `
         <span class="label-title">${escapeValue(event.name)}</span>
         <span class="label-meta">${escapeValue(event.categoryIcon)} ${escapeValue(
@@ -1273,7 +2187,12 @@
       syncMarkersToViewport();
     };
 
-    map.on("moveend", syncMarkersToViewport);
+    map.on("moveend", () => {
+      syncMarkersToViewport();
+      if (initialDataReady && syncEventSourcesToViewport) {
+        void syncEventSourcesToViewport();
+      }
+    });
 
     let calendarViewDate = new Date();
     calendarViewDate = new Date(
@@ -1558,7 +2477,62 @@
       }, 0);
     };
 
+    const restoreInitialUrlState = () => {
+      if (initialUrlApplied) return null;
+      initialUrlApplied = true;
+
+      const linkedEvent = initialEventId
+        ? events.find(event => event.id === initialEventId)
+        : null;
+      if (linkedEvent) {
+        if (dateStart) dateStart.value = linkedEvent.startDate || linkedEvent.endDate || "";
+        if (dateEnd) dateEnd.value = linkedEvent.endDate || linkedEvent.startDate || "";
+        if (searchInput) searchInput.value = "";
+        if (categoryFilters) {
+          categoryFilters
+            .querySelectorAll("input[type='checkbox']")
+            .forEach(input => {
+              input.checked = linkedEvent.categories.includes(input.value);
+            });
+        }
+        selectingRangeEnd = false;
+        syncDateTrigger();
+        return linkedEvent;
+      }
+
+      if (initialEventId) {
+        setEventUrl("");
+        showShareToast("共有されたイベントは現在のデータに見つかりませんでした。");
+      }
+
+      const from = initialParams.get("from") || "";
+      const to = initialParams.get("to") || "";
+      if (dateStart && parseDateValue(from) != null) dateStart.value = from;
+      if (dateEnd && parseDateValue(to) != null) dateEnd.value = to;
+      if (searchInput) searchInput.value = initialParams.get("q") || "";
+
+      if (initialParams.has("cat") && categoryFilters) {
+        const requestedCategories = new Set(
+          initialParams.getAll("cat").filter(Boolean)
+        );
+        categoryFilters
+          .querySelectorAll("input[type='checkbox']")
+          .forEach(input => {
+            input.checked = requestedCategories.has(input.value);
+          });
+      }
+      selectingRangeEnd = Boolean(dateStart && dateStart.value && dateEnd && !dateEnd.value);
+      syncDateTrigger();
+      return null;
+    };
+
     const matchesDateRange = (event, startFilter, endFilter) => {
+      if (event.occurrenceValues && event.occurrenceValues.length > 0) {
+        return event.occurrenceValues.some(value =>
+          (startFilter == null || value >= startFilter) &&
+          (endFilter == null || value <= endFilter)
+        );
+      }
       const eventStart = event.startValue;
       const eventEnd = event.endValue || eventStart;
 
@@ -1571,7 +2545,24 @@
       return true;
     };
 
-    const applyFilters = () => {
+    const focusVisibleEvents = visibleEvents => {
+      if (visibleEvents.length === 0) return;
+      if (visibleEvents.length === 1) {
+        map.setView([visibleEvents[0].lat, visibleEvents[0].lon], 14);
+        return;
+      }
+      const bounds = L.latLngBounds(
+        visibleEvents.map(event => [event.lat, event.lon])
+      );
+      if (bounds.isValid()) {
+        map.fitBounds(bounds, {
+          padding: [40, 40],
+          maxZoom: 13,
+        });
+      }
+    };
+
+    const applyFilters = (fitMap = false) => {
       const selectedCategories = getSelectedCategories();
       let startFilter = parseDateValue(dateStart ? dateStart.value : "");
       let endFilter = parseDateValue(dateEnd ? dateEnd.value : "");
@@ -1592,9 +2583,11 @@
         if (visibleCount) {
           visibleCount.textContent = "0";
         }
+        if (floatingVisibleCount) floatingVisibleCount.textContent = "0";
         if (dateInfo) {
           dateInfo.textContent = "期間を選択すると表示されます";
         }
+        syncFilterUrl();
         return;
       }
 
@@ -1610,11 +2603,13 @@
         if (shouldShow) visibleEvents.push(event);
       });
       rebuildLocationMarkers(visibleEvents);
+      if (fitMap) focusVisibleEvents(visibleEvents);
       const visible = visibleEvents.length;
 
       if (visibleCount) {
         visibleCount.textContent = `${visible}`;
       }
+      if (floatingVisibleCount) floatingVisibleCount.textContent = `${visible}`;
 
       const startText = dateStart && dateStart.value ? dateStart.value : "";
       const endText = dateEnd && dateEnd.value ? dateEnd.value : "";
@@ -1631,6 +2626,7 @@
           dateInfo.textContent = "期間を選択すると表示されます";
         }
       }
+      syncFilterUrl();
     };
 
     const updateDateBounds = (minDateValue, maxDateValue, initializeDates) => {
@@ -1702,10 +2698,110 @@
           });
       }
 
-      updateDateBounds(next.minDateValue, next.maxDateValue, initializeDates);
+      let linkedEvent = null;
+      updateDateBounds(next.minDateValue, next.maxDateValue, false);
+      if (initializeDates) {
+        linkedEvent = restoreInitialUrlState();
+        if (!hasInitialFilterState && !linkedEvent) {
+          updateDateBounds(next.minDateValue, next.maxDateValue, true);
+        }
+      }
       if (totalCount) totalCount.textContent = `${events.length}`;
       if (filterSummary) filterSummary.classList.remove("hidden");
-      applyFilters();
+      applyFilters(Boolean(searchInput && searchInput.value.trim()));
+      if (linkedEvent) {
+        window.requestAnimationFrame(() => {
+          map.setView([linkedEvent.lat, linkedEvent.lon], 15, { animate: false });
+          openLocationEvents([linkedEvent]);
+        });
+      }
+    };
+
+    const renderLoadedSources = (initializeDates = false) => {
+      const loaded = EVENT_CSV_SOURCES
+        .filter(source => loadedSourcePayloads.has(source.id))
+        .map(source => ({ source, payload: loadedSourcePayloads.get(source.id) }));
+      if (loaded.length === 0) {
+        throw new Error("表示範囲のイベント情報を読み込めませんでした。");
+      }
+      const mergedPayload = mergeEventPayloads(loaded);
+      const changed = initializeDates || mergedPayload.fingerprint !== currentFingerprint;
+      if (changed) replaceEventData(mergedPayload, initializeDates);
+      return changed;
+    };
+
+    const loadSourcePayload = (source, forceRefresh = false) => {
+      if (!forceRefresh && loadedSourcePayloads.has(source.id)) {
+        return Promise.resolve({ source, payload: loadedSourcePayloads.get(source.id) });
+      }
+      if (sourceLoadRequests.has(source.id)) {
+        return sourceLoadRequests.get(source.id);
+      }
+      const request = fetchAndParseEvents(source, forceRefresh)
+        .then(payload => {
+          loadedSourcePayloads.set(source.id, payload);
+          return { source, payload };
+        })
+        .finally(() => {
+          sourceLoadRequests.delete(source.id);
+        });
+      sourceLoadRequests.set(source.id, request);
+      return request;
+    };
+
+    syncEventSourcesToViewport = async ({
+      initializeDates = false,
+      forceRefresh = false,
+      announce = true,
+    } = {}) => {
+      const generation = ++sourceViewGeneration;
+      const viewportSources = getSourcesForViewport();
+      const sourcesToLoad = forceRefresh
+        ? viewportSources.filter(source => !String(source.format || "").startsWith("ckan-"))
+        : viewportSources.filter(source => !loadedSourcePayloads.has(source.id));
+
+      if (announce && sourcesToLoad.length > 0) {
+        const areaNames = sourcesToLoad
+          .map(source => source.areaName || source.sourceName)
+          .filter(Boolean)
+          .join("・");
+        setDataRefreshStatus(`${areaNames}のイベント情報を読み込んでいます...`);
+      }
+
+      const results = await Promise.allSettled(
+        sourcesToLoad.map(source =>
+          loadSourcePayload(source, forceRefresh || Boolean(source.refreshOnLoad))
+        )
+      );
+      const failedSources = results
+        .map((result, index) => ({ result, source: sourcesToLoad[index] }))
+        .filter(item => item.result.status === "rejected");
+      failedSources.forEach(({ result, source }) => {
+        console.warn(`Event source load failed: ${source.id}`, result.reason);
+      });
+
+      if (generation !== sourceViewGeneration && !initializeDates) {
+        return { changed: false, failedSources, stale: true, viewportSources };
+      }
+      if (loadedSourcePayloads.size === 0) {
+        throw new Error("表示範囲のイベント情報を読み込めませんでした。");
+      }
+
+      const changed = renderLoadedSources(initializeDates);
+      if (announce) {
+        if (failedSources.length > 0) {
+          setDataRefreshStatus(
+            "一部の地域データを取得できませんでした。取得済みの情報を表示しています。",
+            "warning"
+          );
+        } else if (sourcesToLoad.length > 0) {
+          setDataRefreshStatus(
+            `表示範囲のイベント情報を読み込みました（${formatCheckedTime(new Date())}）`,
+            "success"
+          );
+        }
+      }
+      return { changed, failedSources, stale: false, viewportSources };
     };
 
     if (dateStart) {
@@ -1850,10 +2946,18 @@
       if (datePicker && !datePicker.hidden) positionDatePicker();
     });
     if (categoryFilters) {
-      categoryFilters.addEventListener("change", applyFilters);
+      categoryFilters.addEventListener("change", () => applyFilters());
     }
     if (searchInput) {
-      const debouncedApply = debounce(applyFilters, 250);
+      const debouncedApply = debounce(() => {
+        const targetSource = findSourceForSearch(searchInput.value);
+        if (targetSource && !loadedSourcePayloads.has(targetSource.id)) {
+          focusSourceArea(targetSource, false);
+          if (syncEventSourcesToViewport) void syncEventSourcesToViewport();
+          return;
+        }
+        applyFilters(true);
+      }, 250);
       searchInput.addEventListener("input", debouncedApply);
     }
     if (categoryAll) {
@@ -1869,37 +2973,47 @@
       });
     }
 
-    setDataRefreshStatus("イベント情報を自動で読み込んでいます...");
+    const entrySource = findSourceForEventId(initialEventId) ||
+      findSourceForSearch(initialParams.get("q"));
+    if (entrySource) focusSourceArea(entrySource, false);
 
-    let initialPayload;
+    setDataRefreshStatus("表示範囲のイベント情報を読み込んでいます...");
+
+    let initialLoadResult;
     try {
-      initialPayload = await loadEventSources(false);
-      replaceEventData(initialPayload, true);
+      initialLoadResult = await syncEventSourcesToViewport({
+        initializeDates: true,
+        announce: false,
+      });
+      initialDataReady = true;
     } finally {
       setLoading(false);
     }
 
-    if (initialPayload.failedSources.length > 0) {
+    if (initialLoadResult.failedSources.length > 0) {
       setDataRefreshStatus(
-        "一部のデータを取得できませんでした。読み込めたイベントを表示しています。",
+        "表示範囲の一部データを取得できませんでした。読み込めた情報を表示しています。",
         "warning"
       );
     } else {
-      setDataRefreshStatus("イベント情報を表示中・最新情報を確認しています...");
+      setDataRefreshStatus("表示範囲のイベント情報を表示中・最新情報を確認しています...");
     }
 
     void (async () => {
       try {
-        const freshPayload = await loadEventSources(true);
-        if (freshPayload.failedSources.length > 0) {
+        const freshResult = await syncEventSourcesToViewport({
+          forceRefresh: true,
+          announce: false,
+        });
+        if (freshResult.stale) return;
+        if (freshResult.failedSources.length > 0) {
           setDataRefreshStatus(
-            "通信できないデータがあるため、取得済みのイベント情報を表示しています。",
+            "表示範囲の一部データと通信できないため、取得済みの情報を表示しています。",
             "warning"
           );
           return;
         }
-        if (freshPayload.fingerprint !== currentFingerprint) {
-          replaceEventData(freshPayload, false);
+        if (freshResult.changed) {
           setDataRefreshStatus(
             `最新情報に更新しました（${formatCheckedTime(new Date())}）`,
             "success"

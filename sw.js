@@ -1,4 +1,4 @@
-const STATIC_CACHE = "static-v30";
+const STATIC_CACHE = "static-v40";
 const RUNTIME_CACHE = "runtime-v8";
 const DATA_CACHE = "data-v8";
 // Keep the tile cache stable across app releases so repeat map views stay fast.
@@ -12,15 +12,15 @@ const STATIC_ASSETS = [
   "privacy.html",
   "correction-request.html",
   "assets/policy.css?v=1",
-  "assets/styles.css?v=16",
-  "assets/app.js?v=26",
-  "assets/js/config.js?v=13",
+  "assets/styles.css?v=20",
+  "assets/app.js?v=36",
+  "assets/js/config.js?v=18",
   "assets/js/csv.js",
   "assets/js/utils.js",
   "assets/js/visitor-counter.js?v=2",
   "assets/js/event-csv-worker.js?v=4",
   "assets/maps/hamamatsu-overview.jpg?v=4",
-  "data/current_and_future_events.csv",
+  "assets/og-weekend-festival.png",
   "manifest.webmanifest",
   "browserconfig.xml",
   "assets/icons/icon-16.png",
