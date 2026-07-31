@@ -670,6 +670,9 @@
 
   async function main() {
     setupMenuControls();
+    if (window.App.visitorCounter) {
+      void window.App.visitorCounter.init();
+    }
     try {
       if (!sessionStorage.getItem("event-map-welcome-shown")) {
         sessionStorage.setItem("event-map-welcome-shown", "1");

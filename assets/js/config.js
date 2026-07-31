@@ -31,10 +31,22 @@
     ],
   };
 
+  const VISITOR_COUNTER = {
+    apiBase: "https://api.counterapi.dev/v1",
+    namespace: "suzuking001-event-map",
+    totalKey: "unique-visitors",
+    dailyKeyPrefix: "visitors",
+    historyDays: 7,
+    timeZone: "Asia/Tokyo",
+    productionHosts: ["suzuking001.github.io"],
+    storagePrefix: "event-map-visitor-counter-v1",
+  };
+
   window.App.config = {
     EVENT_CSV_SOURCES,
     TILE_URL,
     TILE_ATTRIBUTION,
     OVERVIEW_MAP,
+    VISITOR_COUNTER,
   };
 })();

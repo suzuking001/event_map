@@ -29,7 +29,7 @@
     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
     crossorigin=""
   />
-  <link rel="stylesheet" href="assets/styles.css?v=12" />
+  <link rel="stylesheet" href="assets/styles.css?v=13" />
 </head>
 <body>
   <button id="menu-toggle" class="menu-toggle" aria-label="メニューを開く" aria-expanded="true" aria-controls="side-menu">
@@ -80,6 +80,33 @@
     <div id="data-refresh-status" class="menu-hint data-refresh-status" role="status" aria-live="polite">
       イベント情報を確認しています...
     </div>
+    <section id="visitor-counter" class="visitor-counter" aria-labelledby="visitor-counter-title">
+      <div class="visitor-counter-header">
+        <div>
+          <span class="visitor-counter-eyebrow">VISITORS</span>
+          <h2 id="visitor-counter-title">アクセス状況 <small>（概算）</small></h2>
+        </div>
+        <span class="visitor-counter-pulse" aria-hidden="true"></span>
+      </div>
+      <div class="visitor-counter-grid" aria-live="polite">
+        <div class="visitor-counter-stat">
+          <span id="visitor-total" class="visitor-counter-value">—</span>
+          <span class="visitor-counter-label">累計訪問者</span>
+        </div>
+        <div class="visitor-counter-stat">
+          <span id="visitor-today" class="visitor-counter-value">—</span>
+          <span class="visitor-counter-label">今日</span>
+        </div>
+      </div>
+      <div id="visitor-last-updated" class="visitor-counter-updated">集計情報を確認しています...</div>
+      <details id="visitor-history-details" class="visitor-history">
+        <summary>直近7日間の人数を見る</summary>
+        <ol id="visitor-history-list" class="visitor-history-list"></ol>
+      </details>
+      <p class="visitor-counter-note">
+        同じ端末からの同日アクセスは1人として集計します。Cookieや氏名・位置情報は使用しません。
+      </p>
+    </section>
     <div class="menu-footer">
       <div class="menu-license">
         <div>Leaflet (MIT) | &copy; OpenStreetMap contributors (ODbL)</div>
@@ -146,6 +173,7 @@
             <p>データ提供：浜松市<br>クリエイティブ・コモンズ・ライセンス 表示2.1 日本</p>
             <p>本アプリは個人が作成した非公式アプリであり、浜松市が提供・運営するものではありません。表示内容の正確性を保証するものではないため、最新情報は公式サイトでご確認ください。</p>
             <p>位置情報は端末内で処理され、保存されません。</p>
+            <p>訪問人数は同じ端末からの同日アクセスを1人とする概算値です。重複防止のためブラウザ内に集計済みの日付だけを保存し、匿名の件数を外部集計サービスに送信します。</p>
           </div>
         </details>
         <section class="about-author" aria-labelledby="about-author-title">
@@ -169,10 +197,11 @@
     crossorigin="">
   </script>
 
-  <script charset="UTF-8" src="assets/js/config.js?v=12"></script>
+  <script charset="UTF-8" src="assets/js/config.js?v=13"></script>
   <script charset="UTF-8" src="assets/js/csv.js"></script>
   <script charset="UTF-8" src="assets/js/utils.js"></script>
-  <script charset="UTF-8" src="assets/app.js?v=21"></script>
+  <script charset="UTF-8" src="assets/js/visitor-counter.js?v=1"></script>
+  <script charset="UTF-8" src="assets/app.js?v=22"></script>
   <script>
     if ("serviceWorker" in navigator && location.protocol !== "file:") {
       window.addEventListener("load", () => {
