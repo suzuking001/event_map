@@ -1,4 +1,4 @@
-const STATIC_CACHE = "static-v14";
+const STATIC_CACHE = "static-v22";
 const RUNTIME_CACHE = "runtime-v8";
 const DATA_CACHE = "data-v8";
 // Keep the tile cache stable across app releases so repeat map views stay fast.
@@ -8,8 +8,8 @@ const EVENT_REFRESH_PARAM = "_event_map_refresh";
 
 const STATIC_ASSETS = [
   "index.html",
-  "assets/styles.css?v=6",
-  "assets/app.js?v=12",
+  "assets/styles.css?v=12",
+  "assets/app.js?v=20",
   "assets/js/config.js?v=12",
   "assets/js/csv.js",
   "assets/js/utils.js",

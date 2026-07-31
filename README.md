@@ -20,8 +20,11 @@
 - Service Workerで静的ファイル/CSV/タイルをキャッシュ
 
 ## 使い方
-1. 静的Webサイトとして公開して `index.html` を開きます。
-   - ローカルで試す場合は簡易サーバーの利用を推奨します。
+1. アプリのインストールは不要です。次のいずれかでブラウザから開きます。
+   - 公開版: https://suzuking001.github.io/event_map/
+   - Windows: 同梱の `イベントマップを開く.url` をダブルクリック
+   - ローカル開発: `start_local_server.bat` を実行（Python 3が必要）
+   - 手動でローカル起動する場合:
      ```bash
      python -m http.server
      ```
@@ -72,6 +75,9 @@ Service Workerにより、次回以降の読み込みが速くなります。
 ```
 
 ## トラブルシューティング
+- WindowsのSmart App Controlでバッチファイルが開けない:
+  - Smart App Controlを無効にする必要はありません。`イベントマップを開く.url` または公開版URLを利用してください。
+  - 公開版の利用にはPythonや専用アプリのインストールは不要です。
 - `file://` で開くとCSVが読み込めない:
   - ブラウザのCORS制限により発生します。`python -m http.server` などで起動してください。
 - キャッシュを更新したい:

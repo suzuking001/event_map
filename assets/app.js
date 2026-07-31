@@ -46,6 +46,23 @@
     "#84cc16",
   ];
 
+  const CATEGORY_ICON_RULES = [
+    { pattern: /講座|教室|学習|ワークショップ/, icon: "📚" },
+    { pattern: /スポーツ|運動|競技/, icon: "⚽" },
+    { pattern: /こそだて|子育て|親子|こども|子ども/, icon: "🧸" },
+    { pattern: /おんがく|音楽|コンサート|ライブ/, icon: "🎵" },
+    { pattern: /かんきょう|環境|自然|エコ/, icon: "🌿" },
+    { pattern: /おしらせ|お知らせ|案内/, icon: "📢" },
+    { pattern: /そうだん|相談/, icon: "💬" },
+    { pattern: /イベント|祭|催し/, icon: "🎪" },
+  ];
+
+  const getCategoryIcon = category => {
+    const text = String(category || "");
+    const rule = CATEGORY_ICON_RULES.find(item => item.pattern.test(text));
+    return rule ? rule.icon : "📍";
+  };
+
   const escapeValue = value => escapeHtml(value == null ? "" : value);
 
   const clampColor = value => Math.max(0, Math.min(255, value));
@@ -143,7 +160,8 @@
   const normalizeCategories = value => {
     const raw = value ? String(value).trim() : "";
     if (!raw) return ["未分類"];
-    const parts = raw.split(/[、/／・]/).map(item => item.trim()).filter(Boolean);
+    // "・" is part of official category names such as "講座・教室".
+    const parts = raw.split(/[、/／]/).map(item => item.trim()).filter(Boolean);
     return parts.length ? parts : [raw];
   };
 
@@ -234,6 +252,44 @@
       <div class="details-actions">${faviconHtml}${urlButton}${searchButton}</div>
       ${summaryHtml}
       <div class="details-grid">${rowsHtml}</div>
+    `;
+  };
+
+  const compareEventsForDisplay = (a, b) => {
+    const aDate = a.startValue == null ? Number.POSITIVE_INFINITY : a.startValue;
+    const bDate = b.startValue == null ? Number.POSITIVE_INFINITY : b.startValue;
+    return aDate - bDate || a.name.localeCompare(b.name, "ja");
+  };
+
+  const getEventGroupPlace = events => {
+    const places = Array.from(new Set(events.map(event => event.place).filter(Boolean)));
+    return places.length === 1 ? places[0] : "同じ場所";
+  };
+
+  const buildEventGroupListHtml = events => {
+    const place = getEventGroupPlace(events);
+    const rows = events
+      .map((event, index) => `
+        <button class="event-group-list-item" type="button" data-group-event-index="${index}">
+          <span class="event-group-list-icon" aria-hidden="true">${escapeValue(event.categoryIcon)}</span>
+          <span class="event-group-list-copy">
+            <strong>${escapeValue(event.name)}</strong>
+            <span>${escapeValue(formatDateRange(event.startDate, event.endDate))}・${escapeValue(
+              event.primaryCategory
+            )}</span>
+            ${event.place && event.place !== place ? `<small>${escapeValue(event.place)}</small>` : ""}
+          </span>
+          <span class="event-group-list-arrow" aria-hidden="true">›</span>
+        </button>
+      `)
+      .join("");
+
+    return `
+      <div class="event-group-list-summary">
+        <strong>${escapeValue(place)}</strong>
+        <span>選択期間内のイベント ${events.length}件</span>
+      </div>
+      <div class="event-group-list">${rows}</div>
     `;
   };
 
@@ -553,28 +609,37 @@
       return;
     }
     categoryFilters.innerHTML = "";
-    categories.forEach(category => {
+    categories.forEach(({ name, count }) => {
       const label = document.createElement("label");
       label.className = "menu-option";
 
       const input = document.createElement("input");
       input.type = "checkbox";
-      input.value = category;
+      input.value = name;
       input.checked = true;
+      input.setAttribute("aria-label", `${name}（${count}件）`);
 
       const swatch = document.createElement("span");
-      swatch.className = "category-swatch";
-      const baseColor = getCategoryColor(category);
-      swatch.style.backgroundColor = baseColor;
+      swatch.className = "category-icon";
+      swatch.textContent = getCategoryIcon(name);
+      swatch.setAttribute("aria-hidden", "true");
+      const baseColor = getCategoryColor(name);
+      swatch.style.backgroundColor = adjustColor(baseColor, 60);
       swatch.style.borderColor = adjustColor(baseColor, -24);
 
       const span = document.createElement("span");
       span.className = "menu-tag";
-      span.textContent = category;
+      span.textContent = name;
+
+      const countSpan = document.createElement("span");
+      countSpan.className = "category-count";
+      countSpan.textContent = `${count}件`;
+      countSpan.setAttribute("aria-hidden", "true");
 
       label.appendChild(input);
       label.appendChild(swatch);
       label.appendChild(span);
+      label.appendChild(countSpan);
       categoryFilters.appendChild(label);
     });
   };
@@ -714,18 +779,19 @@
       alert("位置情報の取得に失敗しました。ブラウザの許可設定をご確認ください。");
     });
 
-    const markerRenderer = L.canvas({ padding: 0.5 });
     const isMobileViewport = window.innerWidth <= 768;
     const LABEL_MIN_ZOOM = isMobileViewport ? 14 : 12;
     const LABEL_FADE_MAX_ZOOM = isMobileViewport ? 16 : 15;
     const MARKER_VIEW_PADDING = isMobileViewport ? 0.2 : 0.35;
     let headers = [];
+    let events = [];
     let markers = [];
+    let activeEventGroup = null;
     let currentFingerprint = "";
 
     const buildEventData = (nextHeaders, rows) => {
       const events = [];
-      const categorySet = new Set();
+      const categoryCounts = new Map();
       let minDateValue = null;
       let maxDateValue = null;
 
@@ -745,7 +811,6 @@
         const lon = parseFloat(fields["経度"]);
 
         const categories = normalizeCategories(fields["カテゴリー"]);
-        categories.forEach(category => categorySet.add(category));
         const primaryCategory = categories[0] || "未分類";
         const baseColor = getCategoryColor(primaryCategory);
         const startValue = parseDateValue(startDate);
@@ -759,6 +824,10 @@
 
         if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
 
+        categories.forEach(category => {
+          categoryCounts.set(category, (categoryCounts.get(category) || 0) + 1);
+        });
+
         events.push({
           id: fields["NO"] || `event-${rowIndex}`,
           name,
@@ -771,6 +840,7 @@
           lon,
           categories,
           primaryCategory,
+          categoryIcon: getCategoryIcon(primaryCategory),
           strokeColor: adjustColor(baseColor, -24),
           fillColor: adjustColor(baseColor, 60),
           searchText: buildSearchText(fields),
@@ -782,29 +852,160 @@
 
       return {
         events,
-        categories: Array.from(categorySet).sort((a, b) =>
-          a.localeCompare(b, "ja")
-        ),
+        categories: Array.from(categoryCounts, ([name, count]) => ({ name, count }))
+          .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "ja")),
         minDateValue,
         maxDateValue,
       };
     };
 
-    const createMarkerForEvent = event => {
-      const marker = L.circleMarker([event.lat, event.lon], {
-        radius: 8,
-        color: event.strokeColor,
-        fillColor: event.fillColor,
-        fillOpacity: 0.9,
-        weight: 2,
-        renderer: markerRenderer,
+    const openEventGroup = groupEvents => {
+      activeEventGroup = groupEvents;
+      const place = getEventGroupPlace(groupEvents);
+      setDetailsOpen(
+        true,
+        buildEventGroupListHtml(groupEvents),
+        `${place}のイベント`
+      );
+    };
+
+    const openLocationEvents = groupEvents => {
+      if (groupEvents.length > 1) {
+        openEventGroup(groupEvents);
+        return;
+      }
+      const event = groupEvents[0];
+      if (!event) return;
+      activeEventGroup = null;
+      setDetailsOpen(
+        true,
+        buildDetailsHtml(event, headers),
+        event.name
+      );
+    };
+
+    if (detailsBody) {
+      detailsBody.addEventListener("click", event => {
+        const eventButton = event.target.closest("[data-group-event-index]");
+        if (eventButton && activeEventGroup) {
+          const index = Number(eventButton.dataset.groupEventIndex);
+          const selectedEvent = activeEventGroup[index];
+          if (!selectedEvent) return;
+          const backButton = `
+            <button class="event-group-back" type="button" data-event-group-back>
+              ← この場所のイベント一覧に戻る
+            </button>
+          `;
+          setDetailsOpen(
+            true,
+            `${backButton}${buildDetailsHtml(selectedEvent, headers)}`,
+            selectedEvent.name
+          );
+          return;
+        }
+
+        const backButton = event.target.closest("[data-event-group-back]");
+        if (backButton && activeEventGroup) {
+          openEventGroup(activeEventGroup);
+        }
+      });
+    }
+
+    const getLocationKey = event =>
+      `${event.lat.toFixed(6)}|${event.lon.toFixed(6)}`;
+
+    const buildLocationGroups = visibleEvents => {
+      const groupsByLocation = new Map();
+      visibleEvents.forEach(event => {
+        const key = getLocationKey(event);
+        if (!groupsByLocation.has(key)) {
+          groupsByLocation.set(key, {
+            key,
+            lat: event.lat,
+            lon: event.lon,
+            events: [],
+            marker: null,
+            labels: [],
+          });
+        }
+        groupsByLocation.get(key).events.push(event);
+      });
+      return Array.from(groupsByLocation.values()).map(group => {
+        group.events.sort(compareEventsForDisplay);
+        return group;
+      });
+    };
+
+    const createMarkerForGroup = group => {
+      const groupEvents = group.events;
+      const firstEvent = groupEvents[0];
+      if (groupEvents.length === 1) {
+        const icon = L.divIcon({
+          className: "event-marker-wrapper",
+          html: `<span class="event-marker" style="--marker-color: ${escapeValue(
+            firstEvent.fillColor
+          )}; --marker-border: ${escapeValue(firstEvent.strokeColor)}" aria-hidden="true"><span class="event-marker-emoji">${escapeValue(
+            firstEvent.categoryIcon
+          )}</span></span>`,
+          iconSize: [30, 32],
+          iconAnchor: [15, 30],
+          tooltipAnchor: [0, -25],
+        });
+        const marker = L.marker([group.lat, group.lon], {
+          icon,
+          title: `${firstEvent.primaryCategory}: ${firstEvent.name}`,
+          alt: `${firstEvent.primaryCategory}のイベント: ${firstEvent.name}`,
+          keyboard: true,
+        });
+        marker.on("click", () => {
+          openLocationEvents(groupEvents);
+        });
+        return marker;
+      }
+
+      const categoryIcons = Array.from(
+        new Set(groupEvents.map(event => event.categoryIcon))
+      );
+      const visibleIcons = categoryIcons.slice(0, 3);
+      const extraCategoryCount = categoryIcons.length - visibleIcons.length;
+      const categoryNames = new Set(groupEvents.map(event => event.primaryCategory));
+      const categoryNameList = Array.from(categoryNames);
+      const usesSingleCategory = categoryNames.size === 1;
+      const fillColor = usesSingleCategory ? firstEvent.fillColor : "#dbeafe";
+      const strokeColor = usesSingleCategory ? firstEvent.strokeColor : "#2563eb";
+      const displayCount = groupEvents.length > 99 ? "99+" : String(groupEvents.length);
+      const place = getEventGroupPlace(groupEvents);
+
+      const icon = L.divIcon({
+        className: "event-marker-group-wrapper",
+        html: `
+          <span class="event-marker-group-shell">
+            <span class="event-marker-group" style="--marker-color: ${escapeValue(
+              fillColor
+            )}; --marker-border: ${escapeValue(strokeColor)}" aria-hidden="true">
+              <span class="event-marker-group-icons">${visibleIcons
+                .map(iconText => `<span>${escapeValue(iconText)}</span>`)
+                .join("")}${extraCategoryCount > 0 ? `<small>＋${extraCategoryCount}</small>` : ""}</span>
+              <span class="event-marker-count">${displayCount}</span>
+            </span>
+          </span>
+        `,
+        iconSize: [48, 36],
+        iconAnchor: [24, 30],
+      });
+      const marker = L.marker([group.lat, group.lon], {
+        icon,
+        title: `${place}: ${categoryNameList.join("・")}のイベント${groupEvents.length}件。押すと一覧を表示します。`,
+        alt: `${place}に${categoryNameList.join("、")}のイベント${groupEvents.length}件`,
+        keyboard: true,
+        zIndexOffset: 200,
       });
 
       marker.on("click", () => {
-        const detailsHtml = buildDetailsHtml(event, headers);
-        setDetailsOpen(true, detailsHtml, event.name);
+        openLocationEvents(groupEvents);
       });
-
+      marker.on("mouseover", () => marker.setZIndexOffset(1000));
+      marker.on("mouseout", () => marker.setZIndexOffset(200));
       return marker;
     };
 
@@ -819,61 +1020,147 @@
       return (zoom - LABEL_MIN_ZOOM) / (LABEL_FADE_MAX_ZOOM - LABEL_MIN_ZOOM);
     };
 
+    const LABEL_STACK_X_STEP = 8;
+    const LABEL_STACK_LINE_PEEK = 19;
+    const getStackedLabelOffset = () => [0, -25];
+
+    const buildMarkerLabelHtml = event => {
+      const dateRange = formatDateRange(event.startDate, event.endDate);
+      return `
+        <span class="label-title">${escapeValue(event.name)}</span>
+        <span class="label-meta">${escapeValue(event.categoryIcon)} ${escapeValue(
+          event.primaryCategory
+        )}・${escapeValue(dateRange)}</span>
+      `;
+    };
+
+    const getDisplayLabelItems = item => {
+      const visibleEvents = item.events.length > 4
+        ? item.events.slice(0, 3)
+        : item.events;
+      const labelItems = visibleEvents.map(event => ({
+        html: buildMarkerLabelHtml(event),
+        ariaLabel: `${event.name}。クリックすると${item.events.length > 1 ? "この場所のイベント一覧" : "詳細"}を表示します。`,
+        isSummary: false,
+      }));
+      if (item.events.length > 4) {
+        const remainingCount = item.events.length - visibleEvents.length;
+        labelItems.push({
+          html: `
+            <span class="label-title">ほか${remainingCount}件</span>
+            <span class="label-meta">クリックして一覧を表示</span>
+          `,
+          ariaLabel: `ほか${remainingCount}件。クリックするとこの場所のイベント一覧を表示します。`,
+          isSummary: true,
+        });
+      }
+      return labelItems;
+    };
+
+    const createEventLabel = (item, labelItem) => {
+      const label = L.tooltip({
+        permanent: true,
+        direction: "top",
+        offset: getStackedLabelOffset(),
+        className: `marker-label marker-label-event marker-label-stacked${labelItem.isSummary ? " marker-label-more" : ""}`,
+        interactive: true,
+      })
+        .setLatLng([item.lat, item.lon])
+        .setContent(labelItem.html);
+
+      label.on("click", leafletEvent => {
+        if (leafletEvent.originalEvent) {
+          L.DomEvent.stop(leafletEvent.originalEvent);
+        }
+        openLocationEvents(item.events);
+      });
+      label.on("add", () => {
+        const element = label.getElement();
+        if (!element) return;
+        element.setAttribute("aria-label", labelItem.ariaLabel);
+      });
+      return label;
+    };
+
+    const alignMarkerLabelStack = item => {
+      const elements = item.labels
+        .map(label => label.getElement())
+        .filter(Boolean);
+      if (elements.length === 0) return;
+
+      elements.forEach(element => {
+        element.style.translate = "";
+      });
+
+      const lastIndex = elements.length - 1;
+      const referenceRect = elements[lastIndex].getBoundingClientRect();
+      elements.forEach((element, index) => {
+        const rect = element.getBoundingClientRect();
+        const distanceFromFront = lastIndex - index;
+        const targetLeft = referenceRect.left - distanceFromFront * LABEL_STACK_X_STEP;
+        const targetTop = referenceRect.top - distanceFromFront * LABEL_STACK_LINE_PEEK;
+        element.style.translate = `${Math.round(targetLeft - rect.left)}px ${Math.round(
+          targetTop - rect.top
+        )}px`;
+        element.style.zIndex = String(index + 1);
+      });
+    };
+
+    const removeMarkerLabels = item => {
+      item.labels.forEach(label => {
+        if (map.hasLayer(label)) map.removeLayer(label);
+      });
+    };
+
     const syncMarkerLabels = () => {
       const opacity = getLabelOpacity();
       markers.forEach(item => {
-        if (!item.marker || !map.hasLayer(item.marker)) {
+        const markerIsVisible = item.marker && map.hasLayer(item.marker);
+        if (!markerIsVisible || opacity <= 0) {
+          removeMarkerLabels(item);
           return;
         }
-        if (opacity <= 0) {
-          if (item.marker.getTooltip()) {
-            item.marker.unbindTooltip();
-          }
-          return;
+        if (item.labels.length === 0) {
+          const labelItems = getDisplayLabelItems(item);
+          item.labels = labelItems.map(labelItem => createEventLabel(item, labelItem));
         }
-        if (!item.marker.getTooltip()) {
-          const dateRange = formatDateRange(item.event.startDate, item.event.endDate);
-          item.marker.bindTooltip(`
-            <span class="label-title">${escapeValue(item.event.name)}</span>
-            <span class="label-meta">${escapeValue(dateRange)}</span>
-          `, {
-            permanent: true,
-            direction: "top",
-            offset: [0, -10],
-            className: "marker-label marker-label-event",
-            interactive: true,
-          });
-        }
-        const tooltip = item.marker.getTooltip();
-        const el = tooltip ? tooltip.getElement() : null;
-        if (!el) {
-          return;
-        }
-        el.style.opacity = String(opacity);
-        el.style.pointerEvents = opacity < 0.2 ? "none" : "auto";
+        item.labels.forEach(label => {
+          if (!map.hasLayer(label)) label.addTo(map);
+          const element = label.getElement();
+          if (!element) return;
+          element.style.opacity = String(opacity);
+          element.style.pointerEvents = opacity < 0.2 ? "none" : "auto";
+        });
+        alignMarkerLabelStack(item);
       });
     };
 
     const syncMarkersToViewport = () => {
       const paddedBounds = map.getBounds().pad(MARKER_VIEW_PADDING);
       markers.forEach(item => {
-        const shouldRender = item.matchesFilters &&
-          paddedBounds.contains([item.event.lat, item.event.lon]);
+        const shouldRender = paddedBounds.contains([item.lat, item.lon]);
         if (shouldRender) {
           if (!item.marker) {
-            item.marker = createMarkerForEvent(item.event);
+            item.marker = createMarkerForGroup(item);
           }
           if (!map.hasLayer(item.marker)) {
             item.marker.addTo(map);
           }
         } else if (item.marker && map.hasLayer(item.marker)) {
-          if (item.marker.getTooltip()) {
-            item.marker.unbindTooltip();
-          }
+          removeMarkerLabels(item);
           map.removeLayer(item.marker);
         }
       });
       syncMarkerLabels();
+    };
+
+    const rebuildLocationMarkers = visibleEvents => {
+      markers.forEach(item => {
+        removeMarkerLabels(item);
+        if (item.marker && map.hasLayer(item.marker)) map.removeLayer(item.marker);
+      });
+      markers = buildLocationGroups(visibleEvents);
+      syncMarkersToViewport();
     };
 
     map.on("moveend", syncMarkersToViewport);
@@ -905,13 +1192,10 @@
       );
       const keyword = searchInput ? searchInput.value.trim().toLowerCase() : "";
       const keywordParts = keyword ? keyword.split(/\s+/).filter(Boolean) : [];
-      let visible = 0;
+      const visibleEvents = [];
 
       if (!hasDateFilter) {
-        markers.forEach(item => {
-          item.matchesFilters = false;
-        });
-        syncMarkersToViewport();
+        rebuildLocationMarkers([]);
         if (visibleCount) {
           visibleCount.textContent = "0";
         }
@@ -921,21 +1205,19 @@
         return;
       }
 
-      markers.forEach(item => {
+      events.forEach(event => {
         const categoryMatch = selectedCategories.size === 0
           ? false
-          : item.event.categories.some(cat => selectedCategories.has(cat));
-        const dateMatch = matchesDateRange(item.event, startFilter, endFilter);
+          : event.categories.some(cat => selectedCategories.has(cat));
+        const dateMatch = matchesDateRange(event, startFilter, endFilter);
         const keywordMatch = keywordParts.length === 0
           ? true
-          : keywordParts.every(part => item.event.searchText.includes(part));
+          : keywordParts.every(part => event.searchText.includes(part));
         const shouldShow = categoryMatch && dateMatch && keywordMatch;
-        item.matchesFilters = shouldShow;
-        if (shouldShow) {
-          visible += 1;
-        }
+        if (shouldShow) visibleEvents.push(event);
       });
-      syncMarkersToViewport();
+      rebuildLocationMarkers(visibleEvents);
+      const visible = visibleEvents.length;
 
       if (visibleCount) {
         visibleCount.textContent = `${visible}`;
@@ -1011,13 +1293,11 @@
       const allWereSelected =
         previousInputs.length > 0 && previousSelected.size === previousInputs.length;
 
-      markers.forEach(item => {
-        if (item.marker && map.hasLayer(item.marker)) map.removeLayer(item.marker);
-      });
+      rebuildLocationMarkers([]);
 
       const next = buildEventData(payload.headers, payload.rows);
       headers = payload.headers;
-      markers = next.events.map(event => ({ marker: null, event, matchesFilters: false }));
+      events = next.events;
       currentFingerprint = payload.fingerprint || "";
       buildCategoryFilters(next.categories);
 
@@ -1030,7 +1310,7 @@
       }
 
       updateDateBounds(next.minDateValue, next.maxDateValue, initializeDates);
-      if (totalCount) totalCount.textContent = `${markers.length}`;
+      if (totalCount) totalCount.textContent = `${events.length}`;
       if (filterSummary) filterSummary.classList.remove("hidden");
       applyFilters();
     };

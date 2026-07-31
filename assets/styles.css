@@ -58,6 +58,139 @@
   background: rgba(255, 255, 255, 0.92);
   border-color: #93c5fd;
 }
+.event-marker-wrapper {
+  background: transparent;
+  border: 0;
+}
+.event-marker {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  box-sizing: border-box;
+  border: 2px solid var(--marker-border, #475569);
+  border-radius: 50% 50% 50% 8px;
+  background: var(--marker-color, #ffffff);
+  box-shadow: 0 3px 8px rgba(15, 23, 42, 0.35);
+  isolation: isolate;
+  transform: rotate(-45deg);
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+.event-marker::before {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.72);
+  z-index: 0;
+}
+.event-marker-wrapper:hover .event-marker,
+.event-marker-wrapper:focus .event-marker {
+  filter: brightness(1.04);
+  transform: rotate(-45deg) scale(1.12);
+}
+.event-marker-emoji {
+  position: relative;
+  z-index: 1;
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+  font-size: 19px;
+  font-style: normal;
+  line-height: 1;
+  text-shadow: 0 1px 1px rgba(255, 255, 255, 0.7);
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+.event-marker-group-wrapper {
+  overflow: visible !important;
+  border: 0;
+  background: transparent;
+}
+.event-marker-group-shell {
+  position: relative;
+  display: block;
+  width: 48px;
+  height: 36px;
+  overflow: visible;
+}
+.event-marker-group {
+  position: absolute;
+  top: 2px;
+  left: 50%;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 38px;
+  height: 27px;
+  padding: 0 7px;
+  box-sizing: border-box;
+  border: 2px solid var(--marker-border, #2563eb);
+  border-radius: 16px;
+  background: var(--marker-color, #dbeafe);
+  box-shadow: 0 3px 9px rgba(15, 23, 42, 0.34);
+  transform: translateX(-50%);
+  transition: transform 0.16s ease, filter 0.16s ease;
+}
+.event-marker-group::before {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  z-index: -1;
+  border-radius: inherit;
+  background: rgba(255, 255, 255, 0.78);
+}
+.event-marker-group-icons {
+  display: flex;
+  align-items: center;
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+  font-size: 15px;
+  line-height: 1;
+  white-space: nowrap;
+}
+.event-marker-group-icons > span + span {
+  margin-left: -3px;
+}
+.event-marker-group-icons small {
+  margin-left: 2px;
+  color: #475569;
+  font-family: system-ui, sans-serif;
+  font-size: 8px;
+  font-weight: 800;
+}
+.event-marker-count {
+  position: absolute;
+  top: -9px;
+  right: -10px;
+  display: grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  border: 2px solid #ffffff;
+  border-radius: 11px;
+  background: #1d4ed8;
+  color: #ffffff;
+  font-family: system-ui, sans-serif;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 2px 5px rgba(15, 23, 42, 0.3);
+}
+.event-marker-group-shell:hover .event-marker-group,
+.event-marker-group-shell:focus-within .event-marker-group {
+  filter: brightness(1.03);
+  transform: translateX(-50%) scale(1.08);
+}
+.marker-label-stacked:hover {
+  z-index: 10000 !important;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.3);
+}
+.marker-label-more {
+  background: #eff6ff;
+  border-color: #60a5fa;
+}
 .leaflet-control-locate {
   margin-bottom: 10px;
 }
@@ -583,6 +716,92 @@
   margin-bottom: 12px;
   align-items: center;
 }
+.event-group-list-summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  background: #eff6ff;
+}
+.event-group-list-summary strong {
+  color: #1e3a8a;
+  font-size: 14px;
+}
+.event-group-list-summary span {
+  color: #475569;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.event-group-list {
+  display: grid;
+  gap: 8px;
+}
+.event-group-list-item {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 16px;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 12px;
+  box-sizing: border-box;
+  border: 1px solid #e2e8f0;
+  border-radius: 11px;
+  background: #ffffff;
+  color: #1f2937;
+  text-align: left;
+  cursor: pointer;
+}
+.event-group-list-item:hover,
+.event-group-list-item:focus-visible {
+  border-color: #93c5fd;
+  background: #f8fbff;
+  outline: none;
+}
+.event-group-list-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: #eff6ff;
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+  font-size: 20px;
+}
+.event-group-list-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.event-group-list-copy strong {
+  font-size: 13px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.event-group-list-copy span,
+.event-group-list-copy small {
+  color: #64748b;
+  font-size: 11px;
+}
+.event-group-list-arrow {
+  color: #2563eb;
+  font-size: 22px;
+  line-height: 1;
+}
+.event-group-back {
+  margin-bottom: 12px;
+  padding: 7px 10px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
 .details-favicon {
   width: 20px;
   height: 20px;
@@ -681,6 +900,11 @@
   line-height: 1.5;
 }
 @media (max-width: 768px) {
+  .event-group-list-summary {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
   .side-menu {
     width: 100vw;
     max-width: 100vw;
@@ -822,62 +1046,83 @@
   margin-top: 14px;
 }
 .menu-subtitle {
-  font-size: 12px;
-  color: #555;
-  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 8px;
+}
+.menu-subtitle span {
+  font-size: 11px;
+  font-weight: 400;
+  color: #64748b;
 }
 .menu-option {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  margin-bottom: 6px;
-  font-size: 13px;
+  display: grid;
+  grid-template-columns: 16px 21px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  padding: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+  font-size: 12px;
   min-width: 0;
+  cursor: pointer;
 }
-.category-swatch {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
+.menu-option:hover {
+  background: rgba(255, 255, 255, 0.95);
+}
+.category-icon {
+  display: grid;
+  place-items: center;
+  width: 21px;
+  height: 21px;
+  border-radius: 6px;
   border: 1px solid #cbd5f5;
   box-sizing: border-box;
   flex: 0 0 auto;
+  background: #ffffff;
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+  font-size: 16px;
+  line-height: 1;
 }
 .menu-option input {
-  margin: 2px 0 0;
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: #2563eb;
 }
 .menu-tag {
-  display: inline-block;
-  padding: 4px 8px;
-  border-radius: 6px;
-  border: 1px solid #c8c8c8;
-  background: #ffffff;
-  font-size: 12px;
+  display: block;
+  font-weight: 600;
+  color: #1f2937;
   white-space: normal;
   overflow-wrap: anywhere;
   word-break: break-word;
   min-width: 0;
 }
+.category-count {
+  color: #64748b;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 #category-filters {
-  max-height: 220px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  max-height: 260px;
   overflow-y: auto;
   padding-right: 4px;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+.category-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin-top: 8px;
+}
+.category-actions .menu-button {
+  width: 100%;
+  padding: 7px 8px;
+  box-shadow: none;
+}
 
