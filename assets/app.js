@@ -517,6 +517,21 @@
     if (!value) return null;
     const trimmed = String(value).trim();
     if (!trimmed) return null;
+    const dateParts = trimmed.match(/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})/);
+    if (dateParts) {
+      const year = Number(dateParts[1]);
+      const month = Number(dateParts[2]);
+      const day = Number(dateParts[3]);
+      const date = new Date(year, month - 1, day);
+      if (
+        date.getFullYear() !== year ||
+        date.getMonth() !== month - 1 ||
+        date.getDate() !== day
+      ) {
+        return null;
+      }
+      return date.getTime();
+    }
     const date = new Date(`${trimmed}T00:00:00`);
     return Number.isNaN(date.getTime()) ? null : date.getTime();
   };
@@ -561,6 +576,23 @@
       return endText;
     }
     return "日程未設定";
+  };
+
+  const parseOccurrenceDates = value => Array.from(new Set(
+    String(value || "")
+      .split(/[;；\r\n]+/)
+      .map(date => date.trim())
+      .filter(date => parseDateValue(date) != null)
+  )).sort((left, right) => parseDateValue(left) - parseDateValue(right));
+
+  const formatEventDate = event => {
+    const occurrenceDates = event.occurrenceDates || [];
+    if (occurrenceDates.length === 0) {
+      return formatDateRange(event.startDate, event.endDate);
+    }
+    const visibleDates = occurrenceDates.slice(0, 4);
+    const remaining = occurrenceDates.length - visibleDates.length;
+    return `${visibleDates.join("、")}${remaining > 0 ? ` ほか${remaining}日` : ""}`;
   };
 
   const formatTimeRange = (start, end) => {
@@ -617,6 +649,7 @@
     "イベント名",
     "開始日",
     "終了日",
+    "開催日一覧",
     "開始時間",
     "終了時間",
     "説明",
@@ -645,6 +678,8 @@
       fields["カテゴリー"],
       fields["タグ"],
       fields["イベント種類"],
+      fields["開催区"],
+      fields["対象者"],
       fields._sourceName,
       fields._sourceAreaName,
       fields["区"],
@@ -687,7 +722,7 @@
     const searchQuery = `${eventArea} ${event.name || "イベント"}`;
     const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`;
     const searchButton = `<a class="details-link-button details-link-button-secondary" href="${searchUrl}" target="_blank" rel="noopener">Googleで検索</a>`;
-    const dateRange = formatDateRange(event.startDate, event.endDate);
+    const dateRange = formatEventDate(event);
     const timeRange = formatTimeRange(event.startTime, event.endTime);
     const description = String(event.fields["説明"] || "").trim();
     const isWebReferenced = event.fields._sourceType === "web" ||
@@ -804,7 +839,7 @@
           <span class="event-group-list-icon" aria-hidden="true">${escapeValue(event.categoryIcon)}</span>
           <span class="event-group-list-copy">
             <strong>${escapeValue(event.name)}</strong>
-            <span>${escapeValue(formatDateRange(event.startDate, event.endDate))}・${escapeValue(
+            <span>${escapeValue(formatEventDate(event))}・${escapeValue(
               event.primaryCategory
             )}</span>
             ${event.place && event.place !== place ? `<small>${escapeValue(event.place)}</small>` : ""}
@@ -996,10 +1031,195 @@
       worker.postMessage({ id: requestId, url, encoding });
     });
 
+
+  const stringifyApiValue = value => {
+    if (value == null) return "";
+    if (Array.isArray(value)) return value.filter(Boolean).join(";");
+    if (typeof value === "object") return JSON.stringify(value);
+    return String(value);
+  };
+
+  const getTokyoTodayValue = () => {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Tokyo",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(new Date());
+    const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+    return parseDateValue(`${values.year}-${values.month}-${values.day}`);
+  };
+
+  const getTokyoTodayString = (separator = "-") => {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Tokyo",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(new Date());
+    const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+    return [values.year, values.month, values.day].join(separator);
+  };
+
+  const fetchJsonp = (requestUrl, callbackParameter = "callback") =>
+    new Promise((resolve, reject) => {
+      const callbackName = `__eventMapJsonp_${buildWorkerId().replace(/[^a-zA-Z0-9_]/g, "")}`;
+      const url = new URL(requestUrl, window.location.href);
+      url.searchParams.set(callbackParameter, callbackName);
+      const script = document.createElement("script");
+      let timeoutId = null;
+
+      const cleanup = () => {
+        if (timeoutId) window.clearTimeout(timeoutId);
+        script.remove();
+        try {
+          delete window[callbackName];
+        } catch (error) {
+          window[callbackName] = undefined;
+        }
+      };
+
+      window[callbackName] = data => {
+        cleanup();
+        resolve(data);
+      };
+      script.async = true;
+      script.src = url.toString();
+      script.onerror = () => {
+        cleanup();
+        reject(new Error("CKAN JSONP request failed."));
+      };
+      timeoutId = window.setTimeout(() => {
+        cleanup();
+        reject(new Error("CKAN JSONP request timed out."));
+      }, 20000);
+      document.head.appendChild(script);
+    });
+
+  const fetchCkanEventPage = async url => {
+    const data = await fetchJsonp(url);
+    const result = data && data.success && data.result;
+    if (!result || !Array.isArray(result.records) || !Array.isArray(result.fields)) {
+      throw new Error("CKAN API returned an unexpected response.");
+    }
+    return {
+      headers: result.fields.map(field => field.id).filter(header => header !== "_id"),
+      records: result.records,
+      totalCount: Number(result.total) || result.records.length,
+    };
+  };
+
+  const applySourceFieldMap = (fields, source) => {
+    const mapped = { ...fields };
+    if (source.lineBreakToken) {
+      Object.keys(mapped).forEach(key => {
+        if (typeof mapped[key] === "string") {
+          mapped[key] = mapped[key].split(source.lineBreakToken).join("\n");
+        }
+      });
+    }
+    Object.entries(source.fieldMap || {}).forEach(([target, candidates]) => {
+      if (mapped[target] != null && String(mapped[target]).trim()) return;
+      const sourceFields = Array.isArray(candidates) ? candidates : [candidates];
+      const matchedField = sourceFields.find(candidate =>
+        mapped[candidate] != null && String(mapped[candidate]).trim()
+      );
+      if (matchedField) mapped[target] = mapped[matchedField];
+    });
+    return mapped;
+  };
+
+  const buildCkanEventPayload = (source, headers, records) => {
+    const mappedRecords = records.map(record => applySourceFieldMap(record, source));
+    const todayValue = getTokyoTodayValue();
+    const filteredRecords = source.currentAndFutureOnly
+      ? mappedRecords.filter(record => {
+          const eventEndValue = parseDateValue(record["終了日"] || record["開始日"] || "");
+          return eventEndValue != null && eventEndValue >= todayValue;
+        })
+      : mappedRecords;
+    const minimumRows = Number(source.minimumRows) || 1;
+    if (filteredRecords.length < minimumRows) {
+      throw new Error(
+        `${source.sourceName || source.id}: only ${filteredRecords.length} events were returned.`
+      );
+    }
+
+    const outputHeaders = Array.isArray(source.outputFields) && source.outputFields.length
+      ? [...source.outputFields]
+      : [...headers];
+    Object.keys(source.fieldMap || {}).forEach(header => {
+      if (!outputHeaders.includes(header)) outputHeaders.push(header);
+    });
+
+    return {
+      headers: outputHeaders,
+      rows: filteredRecords.map(record =>
+        outputHeaders.map(header => stringifyApiValue(record[header]))
+      ),
+      fingerprint: hashText(JSON.stringify(filteredRecords)),
+    };
+  };
+
+  const fetchCkanEventPayload = async (source, initialUrl) => {
+    const pageSize = 1000;
+    const firstPage = await fetchCkanEventPage(initialUrl);
+    const records = [...firstPage.records];
+    for (let offset = records.length; offset < firstPage.totalCount; offset += pageSize) {
+      const nextUrl = new URL(initialUrl, window.location.href);
+      nextUrl.searchParams.set("limit", String(pageSize));
+      nextUrl.searchParams.set("offset", String(offset));
+      const nextPage = await fetchCkanEventPage(nextUrl.toString());
+      records.push(...nextPage.records);
+      if (nextPage.records.length === 0) break;
+    }
+
+    return buildCkanEventPayload(source, firstPage.headers, records);
+  };
+
+  const quoteSqlIdentifier = value => `"${String(value).replace(/"/g, '""')}"`;
+
+  const buildCkanSqlEventUrl = (source, limit, offset) => {
+    const resource = quoteSqlIdentifier(source.resourceId);
+    const startField = quoteSqlIdentifier(source.dateFields.start);
+    const endField = quoteSqlIdentifier(source.dateFields.end);
+    const today = getTokyoTodayString(source.dateSeparator || "-");
+    const sql = [
+      `SELECT * FROM ${resource}`,
+      `WHERE (${endField} >= '${today}'`,
+      `OR ((${endField} = '' OR ${endField} = '0000/00/00')`,
+      `AND ${startField} >= '${today}'))`,
+      `ORDER BY ${startField}`,
+      `LIMIT ${limit} OFFSET ${offset}`,
+    ].join(" ");
+    const url = new URL(source.url, window.location.href);
+    url.searchParams.set("sql", sql);
+    return url.toString();
+  };
+
+  const fetchCkanSqlEventPayload = async source => {
+    const pageSize = 1000;
+    const records = [];
+    let headers = [];
+    for (let offset = 0; ; offset += pageSize) {
+      const page = await fetchCkanEventPage(buildCkanSqlEventUrl(source, pageSize, offset));
+      if (!headers.length) headers = page.headers;
+      records.push(...page.records);
+      if (page.records.length < pageSize) break;
+    }
+    return buildCkanEventPayload(source, headers, records);
+  };
+
   const fetchAndParseEvents = async (source, forceRefresh = false) => {
     const url = forceRefresh && source.refresh
       ? buildFreshCsvUrl(source.url)
       : source.url;
+    if (source.format === "ckan-jsonp") {
+      return fetchCkanEventPayload(source, url);
+    }
+    if (source.format === "ckan-sql-jsonp") {
+      return fetchCkanSqlEventPayload(source);
+    }
     const encoding = source.encoding || "utf-8";
     if (window.Worker) {
       try {
@@ -1013,7 +1233,7 @@
   };
 
   const normalizeSourceFields = (fields, source) => {
-    const normalized = { ...fields };
+    const normalized = applySourceFieldMap(fields, source);
     normalized.NO = normalized.NO || normalized.ID || "";
     normalized["カテゴリー"] = normalized["カテゴリー"] ||
       normalized["キーワード"] ||
@@ -1107,32 +1327,6 @@
       headers: mergedHeaders,
       rows,
       fingerprint: hashText(fingerprintSource),
-    };
-  };
-
-  const loadEventSources = async (forceRefresh = false) => {
-    const results = await Promise.allSettled(
-      EVENT_CSV_SOURCES.map(source =>
-        fetchAndParseEvents(source, forceRefresh).then(payload => ({ source, payload }))
-      )
-    );
-    const loaded = results
-      .filter(result => result.status === "fulfilled")
-      .map(result => result.value);
-    const failedSources = results
-      .map((result, index) => ({ result, source: EVENT_CSV_SOURCES[index] }))
-      .filter(item => item.result.status === "rejected");
-
-    failedSources.forEach(({ result, source }) => {
-      console.warn(`Event CSV load failed: ${source.id}`, result.reason);
-    });
-    if (loaded.length === 0) {
-      throw new Error("すべてのイベントCSVを読み込めませんでした。");
-    }
-
-    return {
-      ...mergeEventPayloads(loaded),
-      failedSources,
     };
   };
 
@@ -1429,12 +1623,78 @@
     const LABEL_MIN_ZOOM = isMobileViewport ? 14 : 13;
     const LABEL_FADE_MAX_ZOOM = 16;
     const MARKER_VIEW_PADDING = isMobileViewport ? 0.2 : 0.35;
+    const SOURCE_LOAD_VIEW_PADDING = 0.15;
+    const SOURCE_LOAD_MIN_VIEW_OVERLAP = 0.08;
     let headers = [];
     let events = [];
     let markers = [];
     let activeEventGroup = null;
     let currentFingerprint = "";
     let initialUrlApplied = false;
+    let initialDataReady = false;
+    let sourceViewGeneration = 0;
+    let syncEventSourcesToViewport = null;
+    const loadedSourcePayloads = new Map();
+    const sourceLoadRequests = new Map();
+
+    const getSourceBounds = source =>
+      Array.isArray(source.loadBounds) && source.loadBounds.length === 2
+        ? L.latLngBounds(source.loadBounds)
+        : null;
+
+    const getSourcesForViewport = () => {
+      const visibleBounds = map.getBounds().pad(SOURCE_LOAD_VIEW_PADDING);
+      return EVENT_CSV_SOURCES.filter(source => {
+        const sourceBounds = getSourceBounds(source);
+        if (!sourceBounds) return true;
+        if (visibleBounds.contains(sourceBounds.getCenter())) return true;
+        if (!visibleBounds.intersects(sourceBounds)) return false;
+        const south = Math.max(visibleBounds.getSouth(), sourceBounds.getSouth());
+        const west = Math.max(visibleBounds.getWest(), sourceBounds.getWest());
+        const north = Math.min(visibleBounds.getNorth(), sourceBounds.getNorth());
+        const east = Math.min(visibleBounds.getEast(), sourceBounds.getEast());
+        const visibleArea = Math.max(
+          (visibleBounds.getNorth() - visibleBounds.getSouth()) *
+            (visibleBounds.getEast() - visibleBounds.getWest()),
+          Number.EPSILON
+        );
+        const overlapArea = Math.max(north - south, 0) * Math.max(east - west, 0);
+        return overlapArea / visibleArea >= SOURCE_LOAD_MIN_VIEW_OVERLAP;
+      });
+    };
+
+    const findSourceForSearch = query => {
+      const normalizedQuery = String(query || "").trim().toLowerCase();
+      if (!normalizedQuery) return null;
+      return EVENT_CSV_SOURCES.find(source =>
+        (source.searchKeywords || []).some(keyword =>
+          normalizedQuery.includes(String(keyword).toLowerCase())
+        )
+      ) || null;
+    };
+
+    const findSourceForEventId = eventId => {
+      const normalizedId = String(eventId || "");
+      if (!normalizedId) return null;
+      const matchedSource = EVENT_CSV_SOURCES.find(source =>
+        normalizedId.startsWith(`${source.id}:`)
+      );
+      if (matchedSource) return matchedSource;
+      return normalizedId.startsWith("event-")
+        ? EVENT_CSV_SOURCES.find(source => source.id === "hamamatsu-open-data") || null
+        : null;
+    };
+
+    const focusSourceArea = (source, animate = true) => {
+      const sourceBounds = getSourceBounds(source);
+      if (!sourceBounds) return false;
+      map.fitBounds(sourceBounds, {
+        animate,
+        padding: [40, 40],
+        maxZoom: 10,
+      });
+      return true;
+    };
 
     const addFilterStateToUrl = url => {
       if (dateStart && dateStart.value) url.searchParams.set("from", dateStart.value);
@@ -1490,7 +1750,7 @@
         return;
       }
       const details = [
-        formatDateRange(selectedEvent.startDate, selectedEvent.endDate),
+        formatEventDate(selectedEvent),
         selectedEvent.place,
       ].filter(Boolean).join("・");
       const selectedArea = selectedEvent.fields["地方公共団体名"] ||
@@ -1504,7 +1764,7 @@
         visual: {
           id: selectedEvent.id,
           title: selectedEvent.name,
-          date: formatDateRange(selectedEvent.startDate, selectedEvent.endDate),
+          date: formatEventDate(selectedEvent),
           place: selectedEvent.place || selectedArea,
           category: selectedEvent.primaryCategory,
           icon: selectedEvent.categoryIcon,
@@ -1557,8 +1817,12 @@
         const categories = normalizeCategories(fields["カテゴリー"]);
         const primaryCategory = categories[0] || "未分類";
         const baseColor = getCategoryColor(primaryCategory);
-        const startValue = parseDateValue(startDate);
-        const endValue = parseDateValue(endDate || startDate);
+        const occurrenceDates = parseOccurrenceDates(fields["開催日一覧"]);
+        const occurrenceValues = occurrenceDates
+          .map(date => parseDateValue(date))
+          .filter(value => value != null);
+        const startValue = occurrenceValues[0] ?? parseDateValue(startDate);
+        const endValue = occurrenceValues.at(-1) ?? parseDateValue(endDate || startDate);
 
         [startValue, endValue].forEach(value => {
           if (value == null) return;
@@ -1594,6 +1858,8 @@
           searchText: buildSearchText(fields),
           startValue,
           endValue: endValue || startValue,
+          occurrenceDates,
+          occurrenceValues,
           fields,
         });
       });
@@ -1783,7 +2049,7 @@
     const getStackedLabelOffset = () => [0, -25];
 
     const buildMarkerLabelHtml = event => {
-      const dateRange = formatDateRange(event.startDate, event.endDate);
+      const dateRange = formatEventDate(event);
       return `
         <span class="label-title">${escapeValue(event.name)}</span>
         <span class="label-meta">${escapeValue(event.categoryIcon)} ${escapeValue(
@@ -1921,7 +2187,12 @@
       syncMarkersToViewport();
     };
 
-    map.on("moveend", syncMarkersToViewport);
+    map.on("moveend", () => {
+      syncMarkersToViewport();
+      if (initialDataReady && syncEventSourcesToViewport) {
+        void syncEventSourcesToViewport();
+      }
+    });
 
     let calendarViewDate = new Date();
     calendarViewDate = new Date(
@@ -2256,6 +2527,12 @@
     };
 
     const matchesDateRange = (event, startFilter, endFilter) => {
+      if (event.occurrenceValues && event.occurrenceValues.length > 0) {
+        return event.occurrenceValues.some(value =>
+          (startFilter == null || value >= startFilter) &&
+          (endFilter == null || value <= endFilter)
+        );
+      }
       const eventStart = event.startValue;
       const eventEnd = event.endValue || eventStart;
 
@@ -2440,6 +2717,93 @@
       }
     };
 
+    const renderLoadedSources = (initializeDates = false) => {
+      const loaded = EVENT_CSV_SOURCES
+        .filter(source => loadedSourcePayloads.has(source.id))
+        .map(source => ({ source, payload: loadedSourcePayloads.get(source.id) }));
+      if (loaded.length === 0) {
+        throw new Error("表示範囲のイベント情報を読み込めませんでした。");
+      }
+      const mergedPayload = mergeEventPayloads(loaded);
+      const changed = initializeDates || mergedPayload.fingerprint !== currentFingerprint;
+      if (changed) replaceEventData(mergedPayload, initializeDates);
+      return changed;
+    };
+
+    const loadSourcePayload = (source, forceRefresh = false) => {
+      if (!forceRefresh && loadedSourcePayloads.has(source.id)) {
+        return Promise.resolve({ source, payload: loadedSourcePayloads.get(source.id) });
+      }
+      if (sourceLoadRequests.has(source.id)) {
+        return sourceLoadRequests.get(source.id);
+      }
+      const request = fetchAndParseEvents(source, forceRefresh)
+        .then(payload => {
+          loadedSourcePayloads.set(source.id, payload);
+          return { source, payload };
+        })
+        .finally(() => {
+          sourceLoadRequests.delete(source.id);
+        });
+      sourceLoadRequests.set(source.id, request);
+      return request;
+    };
+
+    syncEventSourcesToViewport = async ({
+      initializeDates = false,
+      forceRefresh = false,
+      announce = true,
+    } = {}) => {
+      const generation = ++sourceViewGeneration;
+      const viewportSources = getSourcesForViewport();
+      const sourcesToLoad = forceRefresh
+        ? viewportSources.filter(source => !String(source.format || "").startsWith("ckan-"))
+        : viewportSources.filter(source => !loadedSourcePayloads.has(source.id));
+
+      if (announce && sourcesToLoad.length > 0) {
+        const areaNames = sourcesToLoad
+          .map(source => source.areaName || source.sourceName)
+          .filter(Boolean)
+          .join("・");
+        setDataRefreshStatus(`${areaNames}のイベント情報を読み込んでいます...`);
+      }
+
+      const results = await Promise.allSettled(
+        sourcesToLoad.map(source =>
+          loadSourcePayload(source, forceRefresh || Boolean(source.refreshOnLoad))
+        )
+      );
+      const failedSources = results
+        .map((result, index) => ({ result, source: sourcesToLoad[index] }))
+        .filter(item => item.result.status === "rejected");
+      failedSources.forEach(({ result, source }) => {
+        console.warn(`Event source load failed: ${source.id}`, result.reason);
+      });
+
+      if (generation !== sourceViewGeneration && !initializeDates) {
+        return { changed: false, failedSources, stale: true, viewportSources };
+      }
+      if (loadedSourcePayloads.size === 0) {
+        throw new Error("表示範囲のイベント情報を読み込めませんでした。");
+      }
+
+      const changed = renderLoadedSources(initializeDates);
+      if (announce) {
+        if (failedSources.length > 0) {
+          setDataRefreshStatus(
+            "一部の地域データを取得できませんでした。取得済みの情報を表示しています。",
+            "warning"
+          );
+        } else if (sourcesToLoad.length > 0) {
+          setDataRefreshStatus(
+            `表示範囲のイベント情報を読み込みました（${formatCheckedTime(new Date())}）`,
+            "success"
+          );
+        }
+      }
+      return { changed, failedSources, stale: false, viewportSources };
+    };
+
     if (dateStart) {
       dateStart.addEventListener("change", () => {
         selectingRangeEnd = Boolean(dateStart.value && dateEnd && !dateEnd.value);
@@ -2585,7 +2949,15 @@
       categoryFilters.addEventListener("change", () => applyFilters());
     }
     if (searchInput) {
-      const debouncedApply = debounce(() => applyFilters(true), 250);
+      const debouncedApply = debounce(() => {
+        const targetSource = findSourceForSearch(searchInput.value);
+        if (targetSource && !loadedSourcePayloads.has(targetSource.id)) {
+          focusSourceArea(targetSource, false);
+          if (syncEventSourcesToViewport) void syncEventSourcesToViewport();
+          return;
+        }
+        applyFilters(true);
+      }, 250);
       searchInput.addEventListener("input", debouncedApply);
     }
     if (categoryAll) {
@@ -2601,37 +2973,47 @@
       });
     }
 
-    setDataRefreshStatus("イベント情報を自動で読み込んでいます...");
+    const entrySource = findSourceForEventId(initialEventId) ||
+      findSourceForSearch(initialParams.get("q"));
+    if (entrySource) focusSourceArea(entrySource, false);
 
-    let initialPayload;
+    setDataRefreshStatus("表示範囲のイベント情報を読み込んでいます...");
+
+    let initialLoadResult;
     try {
-      initialPayload = await loadEventSources(false);
-      replaceEventData(initialPayload, true);
+      initialLoadResult = await syncEventSourcesToViewport({
+        initializeDates: true,
+        announce: false,
+      });
+      initialDataReady = true;
     } finally {
       setLoading(false);
     }
 
-    if (initialPayload.failedSources.length > 0) {
+    if (initialLoadResult.failedSources.length > 0) {
       setDataRefreshStatus(
-        "一部のデータを取得できませんでした。読み込めたイベントを表示しています。",
+        "表示範囲の一部データを取得できませんでした。読み込めた情報を表示しています。",
         "warning"
       );
     } else {
-      setDataRefreshStatus("イベント情報を表示中・最新情報を確認しています...");
+      setDataRefreshStatus("表示範囲のイベント情報を表示中・最新情報を確認しています...");
     }
 
     void (async () => {
       try {
-        const freshPayload = await loadEventSources(true);
-        if (freshPayload.failedSources.length > 0) {
+        const freshResult = await syncEventSourcesToViewport({
+          forceRefresh: true,
+          announce: false,
+        });
+        if (freshResult.stale) return;
+        if (freshResult.failedSources.length > 0) {
           setDataRefreshStatus(
-            "通信できないデータがあるため、取得済みのイベント情報を表示しています。",
+            "表示範囲の一部データと通信できないため、取得済みの情報を表示しています。",
             "warning"
           );
           return;
         }
-        if (freshPayload.fingerprint !== currentFingerprint) {
-          replaceEventData(freshPayload, false);
+        if (freshResult.changed) {
           setDataRefreshStatus(
             `最新情報に更新しました（${formatCheckedTime(new Date())}）`,
             "success"

@@ -2,15 +2,16 @@
 ![浜松市イベントマップの画面](%E3%82%B9%E3%82%AF%E3%83%AA%E3%83%BC%E3%83%B3%E3%82%B7%E3%83%A7%E3%83%83%E3%83%88%202026-02-07%20182216.png)
 
 
-浜松市・大阪府・鳥取県・岡崎市のイベントオープンデータと、各ウェブページを参照して整理したイベント情報を読み込み、地図上で可視化する静的Webアプリです。
+浜松市・大阪府・鳥取県・岡崎市・会津若松市・川崎市のイベントオープンデータを読み込み、地図上で可視化する静的Webアプリです。
 
 ## デモ
 - https://suzuking001.github.io/event_map/
 
 ## 特徴
-- CSVからイベントを読み込み、地図上にマーカー表示
+- 外部APIとCSVからイベントを読み込み、地図上にマーカー表示
+- 表示中の地図付近にある地域データだけを遅延取得し、取得済みデータは再利用
 - 期間（開始日/終了日）、カテゴリ、キーワードで絞り込み
-- 「大阪」「鳥取」「岡崎」などの地域名で検索すると対象地域へ自動移動
+- 「大阪」「鳥取」「岡崎」「会津」「川崎」などの地域名で検索すると対象地域へ自動移動
 - 初回起動時に使い方とデータ利用上の注意を案内
 - クリックでイベントの開催日・時間・会場を優先した詳細カードを表示
 - イベント単位または現在の絞り込み条件をX・Facebook・リンクコピーで共有
@@ -68,27 +69,36 @@ Service Workerにより、次回以降の読み込みが速くなります。
   - https://static.hamamatsu.odpf.net/opendata/v01/221309_hamamatsu_event/221309_hamamatsu_event.csv
 - 大阪府イベント一覧（CC BY 4.0）
   - https://data.bodik.jp/dataset/270008_event
-  - `data/osaka_events.csv`
+  - ブラウザからBODIK CKAN API（JSONP）を直接取得
 - とっとりイベントナビ（同サイトのオープンデータ利用条件）
   - https://tottori-eventnavi.jp/opendata
   - `data/tottori_events.csv`
 - 岡崎市イベント一覧（CC BY 4.0）
   - https://data.bodik.jp/dataset/232025_event
-  - `data/okazaki_events.csv`
-- ウェブ参照情報
-  - `data/current_and_future_events.csv`
-  - イベント主催者、会場、施設等のウェブページや情報掲載ページを参照して、客観的な事実情報を整理したデータです。
-  - 各行の `URL` が参照元です。各オープンデータのライセンスは適用されません。
+  - ブラウザからBODIK CKAN API（JSONP）を直接取得
+- 会津若松市のイベント情報（クリエイティブ・コモンズ 表示）
+  - https://data.data4citizen.jp/dataset/10060001
+  - ブラウザからDATA for CITIZEN CKAN API（JSONP）を直接取得
+- 川崎市のイベント情報のオープンデータ（CC BY 2.1 日本）
+  - https://eventapp.city.kawasaki.jp/data/api/v1/reference.html
+  - 公式APIをGitHub Actionsが毎日取得し、現在から1年分を地図用CSVへ変換
+  - リポジトリへの不必要な再掲載を避けるため、メールアドレスと電話番号は生成時に除外
 
-### 地域オープンデータの更新
+### 地域オープンデータの取得方式
 
-外部配信元はブラウザ向けCORSに対応していないため、現在・未来の行だけをUTF-8 CSVとして保存しています。
+大阪府・岡崎市はBODIK CKAN API、会津若松市はDATA for CITIZEN CKAN APIのJSONPレスポンスから、ブラウザが現在・未来のイベントを直接取得します。会津若松市は全履歴を読み込まず、CKAN SQL APIで本日以降のデータだけを取得します。
+
+各地域のデータは、その地域が地図の表示範囲付近に入った時点で初めて取得します。初期表示が浜松周辺の場合は浜松市データだけを読み込み、ズームアウトして複数地域が見える場合は該当する地域を追加で読み込みます。一度取得したデータは同じ閲覧中に再利用します。
+
+とっとりイベントナビのCSV配信はブラウザ向けCORSに対応しておらず、鳥取県データ連携基盤のリアルタイムAPIはアクセストークンが必要です。そのため鳥取については、現在・未来の行をUTF-8 CSVとして保存しています。
+
+川崎市公式イベントAPIもブラウザ向けCORSに対応していないため、GitHub Actionsが1日1回取得します。複数開催日は1イベントにまとめたまま `開催日一覧` として保存し、日付検索では実際の開催日だけに一致させます。メールアドレスと電話番号は生成時に除外し、残っていた場合は更新を中止します。川崎市データは川崎周辺が地図に入るまでブラウザへ配信しません。データ固有の帰属表示と加工内容は [`data/README.md`](data/README.md) に記載しています。
 
 ```bash
 node scripts/update-regional-event-data.mjs
 ```
 
-`.github/workflows/update-event-data.yml` が毎日自動更新し、取得件数が異常に少ない場合は既存ファイルを上書きしません。
+`.github/workflows/update-event-data.yml` が鳥取・川崎CSVを毎日自動更新し、取得件数が異常に少ない場合は既存ファイルを上書きしません。
 
 ## 技術要素
 - Leaflet
@@ -109,9 +119,8 @@ node scripts/update-regional-event-data.mjs
 │     ├─ utils.js
 │     └─ event-csv-worker.js
 ├─ data/
-│  ├─ osaka_events.csv
 │  ├─ tottori_events.csv
-│  └─ okazaki_events.csv
+│  └─ kawasaki_events.csv
 └─ scripts/
    └─ update-regional-event-data.mjs
 ```
@@ -128,7 +137,8 @@ node scripts/update-regional-event-data.mjs
 ## ライセンス
 - 浜松市オープンデータ「イベント」: CC BY 2.1 日本
 - 大阪府イベント一覧・岡崎市イベント一覧: CC BY 4.0
+- 会津若松市のイベント情報: クリエイティブ・コモンズ 表示
+- 川崎市のイベント情報のオープンデータ: CC BY 2.1 日本
 - とっとりイベントナビ: 同サイトのオープンデータ利用条件
-- ウェブ参照情報: CC BYの対象外。各参照元の権利・利用条件が適用されます
 - 地図: OpenStreetMap contributors (ODbL)
 - Leaflet: MIT

@@ -16,16 +16,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Download current and future event data
+      - name: Download current and future regional event data
         run: node scripts/update-regional-event-data.mjs
       - name: Commit updated data
         run: |
-          if git diff --quiet -- data/osaka_events.csv data/tottori_events.csv data/okazaki_events.csv; then
+          if [ -z "$(git status --porcelain -- data/tottori_events.csv data/kawasaki_events.csv)" ]; then
             echo "No event data changes."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/osaka_events.csv data/tottori_events.csv data/okazaki_events.csv
+          git add data/tottori_events.csv data/kawasaki_events.csv
           git commit -m "Update regional event data"
           git push
