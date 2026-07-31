@@ -47,18 +47,86 @@
   const visibleCount = document.getElementById("visible-count");
   const totalCount = document.getElementById("total-count");
   const dataRefreshStatus = document.getElementById("data-refresh-status");
+  const floatingVisibleCount = document.getElementById("floating-visible-count");
+  const shareMapButton = document.getElementById("share-map");
+  const shareToast = document.getElementById("share-toast");
+
+  const SHARE_PARAM_KEYS = ["from", "to", "q", "cat", "event"];
+  let shareToastTimer = null;
+
+  const replaceLocationUrl = update => {
+    if (location.protocol === "file:") return;
+    const url = new URL(window.location.href);
+    update(url);
+    window.history.replaceState(null, "", url);
+  };
+
+  const setEventUrl = eventId => {
+    replaceLocationUrl(url => {
+      url.searchParams.delete("event");
+      if (eventId) url.searchParams.set("event", eventId);
+    });
+  };
+
+  const showShareToast = message => {
+    if (!shareToast) return;
+    if (shareToastTimer) window.clearTimeout(shareToastTimer);
+    shareToast.textContent = message;
+    shareToast.setAttribute("aria-hidden", "false");
+    shareToast.classList.add("open");
+    shareToastTimer = window.setTimeout(() => {
+      shareToast.classList.remove("open");
+      shareToast.setAttribute("aria-hidden", "true");
+    }, 2800);
+  };
+
+  const copyShareUrl = async url => {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(url);
+      return;
+    }
+    const input = document.createElement("textarea");
+    input.value = url;
+    input.setAttribute("readonly", "");
+    input.style.position = "fixed";
+    input.style.opacity = "0";
+    document.body.appendChild(input);
+    input.select();
+    const copied = document.execCommand("copy");
+    input.remove();
+    if (!copied) throw new Error("Copy command failed");
+  };
+
+  const shareOrCopy = async payload => {
+    if (navigator.share) {
+      try {
+        await navigator.share(payload);
+        showShareToast("シェアしました！");
+        return;
+      } catch (error) {
+        if (error && error.name === "AbortError") return;
+      }
+    }
+    try {
+      await copyShareUrl(payload.url);
+      showShareToast("リンクをコピーしました！");
+    } catch (error) {
+      console.warn("Share URL copy failed.", error);
+      showShareToast("コピーできませんでした。URL欄から共有してください。");
+    }
+  };
 
   const CATEGORY_PALETTE = [
-    "#2563eb",
-    "#10b981",
-    "#f97316",
-    "#ef4444",
-    "#0ea5e9",
-    "#22c55e",
+    "#ff5a36",
+    "#20c7b5",
+    "#39a8ff",
     "#f59e0b",
-    "#14b8a6",
-    "#e11d48",
-    "#84cc16",
+    "#ef476f",
+    "#8b5cf6",
+    "#16a34a",
+    "#e879f9",
+    "#f97316",
+    "#06b6d4",
   ];
 
   const CATEGORY_ICON_RULES = [
@@ -207,6 +275,21 @@
     return parts.length ? parts : [raw];
   };
 
+  const PRIMARY_DETAIL_FIELDS = new Set([
+    "NO",
+    "イベント名",
+    "開始日",
+    "終了日",
+    "開始時間",
+    "終了時間",
+    "説明",
+    "場所名称",
+    "カテゴリー",
+    "緯度",
+    "経度",
+    "URL",
+  ]);
+
   const buildSearchText = fields => {
     const parts = [
       fields["イベント名"],
@@ -242,45 +325,66 @@
   const buildDetailsHtml = (event, headers) => {
     const rawUrl = event.fields.URL || "";
     const normalizedUrl = normalizeUrl(rawUrl);
-    const urlButton = normalizedUrl
-      ? `<a class="details-link-button" href="${escapeValue(normalizedUrl)}" target="_blank" rel="noopener">WEBページを開く</a>`
-      : `<button class="details-link-button" type="button" disabled>WEBページなし</button>`;
     const faviconUrl = getFaviconUrl(rawUrl);
     const faviconHtml = faviconUrl
       ? `<img class="details-favicon" src="${escapeValue(faviconUrl)}" alt="WEBサイトのアイコン" loading="lazy" referrerpolicy="no-referrer">`
       : "";
+    const urlButton = normalizedUrl
+      ? `<a class="details-link-button" href="${escapeValue(normalizedUrl)}" target="_blank" rel="noopener">${faviconHtml}<span>参照元ページを開く</span></a>`
+      : `<button class="details-link-button" type="button" disabled>参照元ページなし</button>`;
     const searchQuery = `浜松市 ${event.name || "イベント"}`;
     const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`;
-    const searchButton = `<a class="details-link-button" href="${searchUrl}" target="_blank" rel="noopener">Googleで検索</a>`;
+    const searchButton = `<a class="details-link-button details-link-button-secondary" href="${searchUrl}" target="_blank" rel="noopener">Googleで検索</a>`;
     const dateRange = formatDateRange(event.startDate, event.endDate);
     const timeRange = formatTimeRange(event.startTime, event.endTime);
-    const categoryText = event.categories.join(" / ");
+    const description = String(event.fields["説明"] || "").trim();
+    const isWebReferenced = /^WEB/i.test(String(event.fields.NO || "").trim())
+      || /^Web収集:/i.test(String(event.fields["備考"] || "").trim());
+    let sourceHost = "";
+    if (isWebReferenced && normalizedUrl) {
+      try {
+        sourceHost = new URL(normalizedUrl).hostname;
+      } catch (error) {
+        sourceHost = "";
+      }
+    }
+    const sourceNoticeHtml = isWebReferenced
+      ? `
+        <div class="details-source-notice details-source-notice-web">
+          <strong>情報源：ウェブ参照情報${sourceHost ? `（${escapeValue(sourceHost)}）` : ""}</strong>
+          <span>このイベントは浜松市オープンデータではなく、CC BYの対象外です。参照元の権利・利用条件をご確認ください。</span>
+        </div>
+      `
+      : `
+        <div class="details-source-notice details-source-notice-open-data">
+          <strong>情報源：浜松市オープンデータ「イベント」</strong>
+          <span><a href="https://opendata.pref.shizuoka.jp/dataset/12874.html" target="_blank" rel="noopener">クリエイティブ・コモンズ・ライセンス 表示2.1 日本</a></span>
+        </div>
+      `;
 
-    const summaryLines = [
-      `期間: ${escapeValue(dateRange)}`,
-      timeRange ? `時間: ${escapeValue(timeRange)}` : "",
-      categoryText ? `カテゴリ: ${escapeValue(categoryText)}` : "",
-      event.place ? `会場: ${escapeValue(event.place)}` : "",
-    ].filter(Boolean);
-
-    const summaryHtml = summaryLines.length
-      ? `<div class="details-summary">${summaryLines
-          .map(line => `<div>${line}</div>`)
-          .join("")}</div>`
-      : "";
+    const categoryChips = event.categories
+      .map(category => `<span class="event-category-chip">${escapeValue(getCategoryIcon(category))} ${escapeValue(category)}</span>`)
+      .join("");
+    const metaItems = [
+      ["開催日", dateRange],
+      ["時間", timeRange],
+      ["会場", event.place],
+    ]
+      .filter(([, value]) => value)
+      .map(([label, value]) => `
+        <div class="event-meta-item">
+          <dt>${escapeValue(label)}</dt>
+          <dd>${escapeValue(value)}</dd>
+        </div>
+      `)
+      .join("");
 
     const rowsHtml = headers
+      .filter(header => !PRIMARY_DETAIL_FIELDS.has(header))
       .map(header => {
         const rawValue = event.fields[header] || "";
+        if (!String(rawValue).trim()) return "";
         let valueHtml = escapeValue(rawValue).replace(/\r?\n/g, "<br>");
-        if (header === "URL") {
-          const normalizedValue = normalizeUrl(rawValue);
-          valueHtml = normalizedValue
-            ? `<a href="${escapeValue(normalizedValue)}" target="_blank" rel="noopener">${escapeValue(rawValue)}</a>`
-            : "未記載";
-        } else if (!valueHtml) {
-          valueHtml = "未記載";
-        }
         return `
           <div class="detail-row">
             <div class="detail-label">${escapeValue(header)}</div>
@@ -291,9 +395,27 @@
       .join("");
 
     return `
-      <div class="details-actions">${faviconHtml}${urlButton}${searchButton}</div>
-      ${summaryHtml}
-      <div class="details-grid">${rowsHtml}</div>
+      <article class="event-detail-card" style="--event-color: ${escapeValue(event.strokeColor)}; --event-soft-color: ${escapeValue(event.fillColor)}">
+        <div class="event-detail-hero" data-icon="${escapeValue(event.categoryIcon)}">
+          <div class="event-category-chips">${categoryChips}</div>
+          ${description ? `<p class="event-description">${escapeValue(description).replace(/\r?\n/g, "<br>")}</p>` : ""}
+          <dl class="event-meta-grid">${metaItems}</dl>
+        </div>
+        <div class="details-actions">
+          <button class="event-share-button" type="button" data-share-event="${escapeValue(event.id)}">
+            <span aria-hidden="true">↗</span> このイベントをシェア
+          </button>
+          ${urlButton}
+          ${searchButton}
+        </div>
+        <details class="event-more">
+          <summary>詳しい情報・情報源</summary>
+          <div class="event-more-content">
+            ${sourceNoticeHtml}
+            ${rowsHtml ? `<div class="details-grid">${rowsHtml}</div>` : ""}
+          </div>
+        </details>
+      </article>
     `;
   };
 
@@ -312,7 +434,7 @@
     const place = getEventGroupPlace(events);
     const rows = events
       .map((event, index) => `
-        <button class="event-group-list-item" type="button" data-group-event-index="${index}">
+        <button class="event-group-list-item" type="button" data-group-event-index="${index}" style="--event-color: ${escapeValue(event.strokeColor)}; --event-soft-color: ${escapeValue(event.fillColor)}">
           <span class="event-group-list-icon" aria-hidden="true">${escapeValue(event.categoryIcon)}</span>
           <span class="event-group-list-copy">
             <strong>${escapeValue(event.name)}</strong>
@@ -364,7 +486,7 @@
     dataRefreshStatus.dataset.state = state;
   };
 
-  const setDetailsOpen = (isOpen, htmlContent = "", titleText = "") => {
+  const setDetailsOpen = (isOpen, htmlContent = "", titleText = "", eventId = "") => {
     if (!detailsModal || !detailsBody) {
       return;
     }
@@ -373,12 +495,14 @@
         detailsTitle.textContent = titleText || "イベント詳細";
       }
       detailsBody.innerHTML = htmlContent;
+      detailsModal.dataset.eventId = eventId;
+      setEventUrl(eventId);
       detailsModal.inert = false;
       detailsModal.setAttribute("aria-hidden", "false");
+      detailsModal.classList.toggle("open", true);
       if (detailsClose) {
         detailsClose.focus();
       }
-      detailsModal.classList.toggle("open", true);
       return;
     }
     if (detailsModal.contains(document.activeElement) && menuToggle) {
@@ -387,6 +511,8 @@
     detailsModal.classList.toggle("open", false);
     detailsModal.setAttribute("aria-hidden", "true");
     detailsModal.inert = true;
+    detailsModal.dataset.eventId = "";
+    setEventUrl("");
   };
 
   const setAboutOpen = isOpen => {
@@ -727,6 +853,8 @@
       const baseColor = getCategoryColor(name);
       swatch.style.backgroundColor = adjustColor(baseColor, 60);
       swatch.style.borderColor = adjustColor(baseColor, -24);
+      label.style.setProperty("--chip-color", adjustColor(baseColor, -24));
+      label.style.setProperty("--chip-background", adjustColor(baseColor, 70));
 
       const span = document.createElement("span");
       span.className = "menu-tag";
@@ -771,16 +899,21 @@
 
   async function main() {
     setupMenuControls();
+    const initialParams = new URLSearchParams(window.location.search);
+    const initialEventId = initialParams.get("event") || "";
+    const hasInitialFilterState = ["from", "to", "q", "cat"]
+      .some(key => initialParams.has(key));
+    const hasEntryUrlState = Boolean(initialEventId || hasInitialFilterState);
     if (window.App.visitorCounter) {
       void window.App.visitorCounter.init();
     }
     try {
-      if (!sessionStorage.getItem("event-map-welcome-shown")) {
+      if (!hasEntryUrlState && !sessionStorage.getItem("event-map-welcome-shown")) {
         sessionStorage.setItem("event-map-welcome-shown", "1");
         setAboutOpen(true);
       }
     } catch (error) {
-      setAboutOpen(true);
+      if (!hasEntryUrlState) setAboutOpen(true);
     }
     if (dateRangeHint) {
       dateRangeHint.textContent = "データを読み込み中...";
@@ -888,14 +1021,92 @@
     });
 
     const isMobileViewport = window.innerWidth <= 768;
-    const LABEL_MIN_ZOOM = isMobileViewport ? 14 : 12;
-    const LABEL_FADE_MAX_ZOOM = isMobileViewport ? 16 : 15;
+    const LABEL_MIN_ZOOM = isMobileViewport ? 14 : 13;
+    const LABEL_FADE_MAX_ZOOM = 16;
     const MARKER_VIEW_PADDING = isMobileViewport ? 0.2 : 0.35;
     let headers = [];
     let events = [];
     let markers = [];
     let activeEventGroup = null;
     let currentFingerprint = "";
+    let initialUrlApplied = false;
+
+    const addFilterStateToUrl = url => {
+      if (dateStart && dateStart.value) url.searchParams.set("from", dateStart.value);
+      if (dateEnd && dateEnd.value) url.searchParams.set("to", dateEnd.value);
+      const query = searchInput ? searchInput.value.trim() : "";
+      if (query) url.searchParams.set("q", query);
+
+      if (categoryFilters) {
+        const inputs = Array.from(
+          categoryFilters.querySelectorAll("input[type='checkbox']")
+        );
+        const selected = inputs.filter(input => input.checked);
+        if (selected.length !== inputs.length) {
+          if (selected.length === 0) {
+            url.searchParams.append("cat", "");
+          } else {
+            selected.forEach(input => url.searchParams.append("cat", input.value));
+          }
+        }
+      }
+    };
+
+    const buildFilterShareUrl = () => {
+      const url = new URL(window.location.href);
+      SHARE_PARAM_KEYS.forEach(key => url.searchParams.delete(key));
+      addFilterStateToUrl(url);
+      url.hash = "";
+      return url.toString();
+    };
+
+    const buildEventShareUrl = eventId => {
+      const url = new URL(window.location.href);
+      SHARE_PARAM_KEYS.forEach(key => url.searchParams.delete(key));
+      url.searchParams.set("event", eventId);
+      url.hash = "";
+      return url.toString();
+    };
+
+    const syncFilterUrl = () => {
+      if (location.protocol === "file:") return;
+      replaceLocationUrl(url => {
+        const activeEventId = detailsModal ? detailsModal.dataset.eventId : "";
+        ["from", "to", "q", "cat"].forEach(key => url.searchParams.delete(key));
+        addFilterStateToUrl(url);
+        if (activeEventId) url.searchParams.set("event", activeEventId);
+      });
+    };
+
+    const shareEvent = eventId => {
+      const selectedEvent = events.find(event => event.id === eventId);
+      if (!selectedEvent) {
+        showShareToast("イベント情報を確認できませんでした。");
+        return;
+      }
+      const details = [
+        formatDateRange(selectedEvent.startDate, selectedEvent.endDate),
+        selectedEvent.place,
+      ].filter(Boolean).join("・");
+      void shareOrCopy({
+        title: `${selectedEvent.name}｜浜松市 イベントマップ`,
+        text: `${selectedEvent.categoryIcon} ${selectedEvent.name}${details ? `\n${details}` : ""}`,
+        url: buildEventShareUrl(selectedEvent.id),
+      });
+    };
+
+    if (shareMapButton) {
+      shareMapButton.addEventListener("click", () => {
+        const range = dateStart && dateEnd && (dateStart.value || dateEnd.value)
+          ? `${formatDateRange(dateStart.value, dateEnd.value)}の浜松イベント`
+          : "浜松のイベント";
+        void shareOrCopy({
+          title: "浜松、今日は何する？｜浜松市 イベントマップ",
+          text: `${range}を地図でチェック！`,
+          url: buildFilterShareUrl(),
+        });
+      });
+    }
 
     const buildEventData = (nextHeaders, rows) => {
       const events = [];
@@ -988,12 +1199,19 @@
       setDetailsOpen(
         true,
         buildDetailsHtml(event, headers),
-        event.name
+        event.name,
+        event.id
       );
     };
 
     if (detailsBody) {
       detailsBody.addEventListener("click", event => {
+        const shareButton = event.target.closest("[data-share-event]");
+        if (shareButton) {
+          shareEvent(shareButton.dataset.shareEvent || "");
+          return;
+        }
+
         const eventButton = event.target.closest("[data-group-event-index]");
         if (eventButton && activeEventGroup) {
           const index = Number(eventButton.dataset.groupEventIndex);
@@ -1007,7 +1225,8 @@
           setDetailsOpen(
             true,
             `${backButton}${buildDetailsHtml(selectedEvent, headers)}`,
-            selectedEvent.name
+            selectedEvent.name,
+            selectedEvent.id
           );
           return;
         }
@@ -1080,8 +1299,8 @@
       const categoryNames = new Set(groupEvents.map(event => event.primaryCategory));
       const categoryNameList = Array.from(categoryNames);
       const usesSingleCategory = categoryNames.size === 1;
-      const fillColor = usesSingleCategory ? firstEvent.fillColor : "#dbeafe";
-      const strokeColor = usesSingleCategory ? firstEvent.strokeColor : "#2563eb";
+      const fillColor = usesSingleCategory ? firstEvent.fillColor : "#fff0bd";
+      const strokeColor = usesSingleCategory ? firstEvent.strokeColor : "#ff5a36";
       const displayCount = groupEvents.length > 99 ? "99+" : String(groupEvents.length);
       const place = getEventGroupPlace(groupEvents);
 
@@ -1558,6 +1777,55 @@
       }, 0);
     };
 
+    const restoreInitialUrlState = () => {
+      if (initialUrlApplied) return null;
+      initialUrlApplied = true;
+
+      const linkedEvent = initialEventId
+        ? events.find(event => event.id === initialEventId)
+        : null;
+      if (linkedEvent) {
+        if (dateStart) dateStart.value = linkedEvent.startDate || linkedEvent.endDate || "";
+        if (dateEnd) dateEnd.value = linkedEvent.endDate || linkedEvent.startDate || "";
+        if (searchInput) searchInput.value = "";
+        if (categoryFilters) {
+          categoryFilters
+            .querySelectorAll("input[type='checkbox']")
+            .forEach(input => {
+              input.checked = linkedEvent.categories.includes(input.value);
+            });
+        }
+        selectingRangeEnd = false;
+        syncDateTrigger();
+        return linkedEvent;
+      }
+
+      if (initialEventId) {
+        setEventUrl("");
+        showShareToast("共有されたイベントは現在のデータに見つかりませんでした。");
+      }
+
+      const from = initialParams.get("from") || "";
+      const to = initialParams.get("to") || "";
+      if (dateStart && parseDateValue(from) != null) dateStart.value = from;
+      if (dateEnd && parseDateValue(to) != null) dateEnd.value = to;
+      if (searchInput) searchInput.value = initialParams.get("q") || "";
+
+      if (initialParams.has("cat") && categoryFilters) {
+        const requestedCategories = new Set(
+          initialParams.getAll("cat").filter(Boolean)
+        );
+        categoryFilters
+          .querySelectorAll("input[type='checkbox']")
+          .forEach(input => {
+            input.checked = requestedCategories.has(input.value);
+          });
+      }
+      selectingRangeEnd = Boolean(dateStart && dateStart.value && dateEnd && !dateEnd.value);
+      syncDateTrigger();
+      return null;
+    };
+
     const matchesDateRange = (event, startFilter, endFilter) => {
       const eventStart = event.startValue;
       const eventEnd = event.endValue || eventStart;
@@ -1592,9 +1860,11 @@
         if (visibleCount) {
           visibleCount.textContent = "0";
         }
+        if (floatingVisibleCount) floatingVisibleCount.textContent = "0";
         if (dateInfo) {
           dateInfo.textContent = "期間を選択すると表示されます";
         }
+        syncFilterUrl();
         return;
       }
 
@@ -1615,6 +1885,7 @@
       if (visibleCount) {
         visibleCount.textContent = `${visible}`;
       }
+      if (floatingVisibleCount) floatingVisibleCount.textContent = `${visible}`;
 
       const startText = dateStart && dateStart.value ? dateStart.value : "";
       const endText = dateEnd && dateEnd.value ? dateEnd.value : "";
@@ -1631,6 +1902,7 @@
           dateInfo.textContent = "期間を選択すると表示されます";
         }
       }
+      syncFilterUrl();
     };
 
     const updateDateBounds = (minDateValue, maxDateValue, initializeDates) => {
@@ -1702,10 +1974,23 @@
           });
       }
 
-      updateDateBounds(next.minDateValue, next.maxDateValue, initializeDates);
+      let linkedEvent = null;
+      updateDateBounds(next.minDateValue, next.maxDateValue, false);
+      if (initializeDates) {
+        linkedEvent = restoreInitialUrlState();
+        if (!hasInitialFilterState && !linkedEvent) {
+          updateDateBounds(next.minDateValue, next.maxDateValue, true);
+        }
+      }
       if (totalCount) totalCount.textContent = `${events.length}`;
       if (filterSummary) filterSummary.classList.remove("hidden");
       applyFilters();
+      if (linkedEvent) {
+        window.requestAnimationFrame(() => {
+          map.setView([linkedEvent.lat, linkedEvent.lon], 15, { animate: false });
+          openLocationEvents([linkedEvent]);
+        });
+      }
     };
 
     if (dateStart) {

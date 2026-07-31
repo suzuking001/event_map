@@ -3,11 +3,27 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#1d4ed8">
-  <meta name="application-name" content="Hamamatsu_Event_Map">
+  <meta name="theme-color" content="#ff5a36">
+  <meta name="description" content="浜松のイベントを日付・カテゴリ・地図から発見。家族や友人との週末のおでかけを、楽しく探してシェアできるイベントマップです。">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="ja_JP">
+  <meta property="og:site_name" content="浜松市 イベントマップ">
+  <meta property="og:title" content="浜松、今日は何する？｜浜松市 イベントマップ">
+  <meta property="og:description" content="行きたい日を選んで、街のイベントを発見。浜松の週末のおでかけを地図から楽しく探せます。">
+  <meta property="og:url" content="https://suzuking001.github.io/event_map/">
+  <meta property="og:image" content="https://suzuking001.github.io/event_map/assets/og-weekend-festival.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="浜松、今日は何する？ 浜松市イベントマップ">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="浜松、今日は何する？｜浜松市 イベントマップ">
+  <meta name="twitter:description" content="行きたい日を選んで、街のイベントを発見。">
+  <meta name="twitter:image" content="https://suzuking001.github.io/event_map/assets/og-weekend-festival.png">
+  <link rel="canonical" href="https://suzuking001.github.io/event_map/">
+  <meta name="application-name" content="浜松市 イベントマップ">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="Hamamatsu_Event_Map">
+  <meta name="apple-mobile-web-app-title" content="浜松イベント">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <script>
     if (location.protocol !== "file:") {
@@ -20,29 +36,35 @@
   <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/icon-32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="assets/icons/icon-16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="assets/icons/apple-touch-icon.png">
-  <meta name="msapplication-TileColor" content="#1d4ed8">
+  <meta name="msapplication-TileColor" content="#ff5a36">
   <meta name="msapplication-config" content="browserconfig.xml">
-  <title>浜松市 イベントマップ</title>
+  <title>浜松、今日は何する？｜浜松市 イベントマップ</title>
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
     crossorigin=""
   />
-  <link rel="stylesheet" href="assets/styles.css?v=16" />
+  <link rel="stylesheet" href="assets/styles.css?v=18" />
 </head>
 <body>
   <button id="menu-toggle" class="menu-toggle" aria-label="メニューを開く" aria-expanded="true" aria-controls="side-menu">
-    MENU
+    <span aria-hidden="true">☰</span> 探す
   </button>
   <div id="menu-backdrop" class="menu-backdrop" aria-hidden="true"></div>
   <button id="menu-handle" class="menu-handle hidden" type="button" aria-label="メニューを開く"></button>
   <aside id="side-menu" class="side-menu open" aria-hidden="false">
     <div class="menu-header-row">
-      <div class="menu-header">浜松市 イベントマップ</div>
+      <div class="brand-lockup">
+        <img class="brand-mascot" src="assets/icons/icon-192.png" width="58" height="58" alt="">
+        <div>
+          <span class="brand-eyebrow">HAMAMATSU WEEKEND MAP</span>
+          <div class="menu-header">浜松、今日は何する？</div>
+        </div>
+      </div>
       <button id="menu-close" class="menu-close" type="button" aria-label="メニューを閉じる">×</button>
     </div>
-    <p class="menu-intro">行きたい日を選ぶと、開催中のイベントが地図に表示されます。</p>
+    <p class="menu-intro">行きたい日を選んで、街のイベントを発見。</p>
     <section class="date-filter" aria-labelledby="date-filter-title">
       <div class="date-filter-heading">
         <h2 id="date-filter-title">いつ行きますか？</h2>
@@ -89,9 +111,15 @@
         対象データ: <span id="total-count">0</span>件
       </div>
     </div>
+    <button id="share-map" class="share-map-button" type="button">
+      <span aria-hidden="true">↗</span> この条件をシェア
+    </button>
     <div id="data-refresh-status" class="menu-hint data-refresh-status" role="status" aria-live="polite">
       イベント情報を確認しています...
     </div>
+    <details class="menu-more">
+      <summary>このマップの情報</summary>
+      <div class="menu-more-content">
     <section id="visitor-counter" class="visitor-counter" aria-labelledby="visitor-counter-title">
       <div class="visitor-counter-header">
         <div>
@@ -122,14 +150,17 @@
     <div class="menu-footer">
       <div class="menu-license">
         <div>Leaflet (MIT) | &copy; OpenStreetMap contributors (ODbL)</div>
-        <div>データ(CC BY): <a href="https://opendata.pref.shizuoka.jp/dataset/10987.html" target="_blank" rel="noopener">浜松市イベント</a></div>
-        <div>提供: <a href="https://opendata.pref.shizuoka.jp/" target="_blank" rel="noopener">静岡県オープンデータポータル</a> / <a href="https://www.city.hamamatsu.shizuoka.jp/odpf/opendata/v1.html?m=top" target="_blank" rel="noopener">浜松市オープンデータ</a></div>
+        <div>イベント情報: 浜松市オープンデータ＋各参照元ウェブページ</div>
+        <div>CC BY 2.1 日本: <a href="https://opendata.pref.shizuoka.jp/dataset/12874.html" target="_blank" rel="noopener">浜松市オープンデータ「イベント」</a>のみに適用</div>
+        <div>ウェブ参照情報はCC BYの対象外です。各イベント詳細の参照元URLと、参照元の権利・利用条件をご確認ください。</div>
       </div>
       <div class="menu-actions">
         <button id="about-button" class="menu-button" type="button">このアプリについて</button>
         <a class="menu-button menu-link-button" href="https://github.com/suzuking001" target="_blank" rel="noopener">開発者のGitHub</a>
       </div>
     </div>
+      </div>
+    </details>
   </aside>
   <div
     id="date-picker"
@@ -152,7 +183,12 @@
   </div>
   <div id="loading" class="loading" aria-live="polite" aria-hidden="true"></div>
   <div id="map"></div>
-  <div id="details-modal" class="details-modal" aria-hidden="true" role="dialog" aria-label="イベント詳細">
+  <div id="floating-result" class="floating-result" aria-live="polite">
+    <img src="assets/icons/icon-32.png" width="28" height="28" alt="">
+    <span><strong id="floating-visible-count">0</strong>件 見つかりました</span>
+  </div>
+  <div id="share-toast" class="share-toast" role="status" aria-live="polite" aria-hidden="true"></div>
+  <div id="details-modal" class="details-modal" aria-hidden="true" role="dialog" aria-modal="true" aria-label="イベント詳細" inert>
     <div class="details-container" role="document">
       <div class="details-header">
         <div class="details-title"></div>
@@ -165,18 +201,18 @@
   <div id="about-modal" class="details-modal about-modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="about-title">
     <div class="details-container about-container" role="document">
       <div class="about-hero">
-        <div class="about-eyebrow">HAMAMATSU OPEN DATA</div>
+        <div class="about-eyebrow">HAMAMATSU EVENT GUIDE</div>
         <div class="about-hero-row">
           <div>
-            <h1 id="about-title">浜松市 イベントマップ</h1>
-            <p>行きたいイベントを、日付と地図から直感的に。</p>
+            <h1 id="about-title">浜松、今日は何する？</h1>
+            <p>行きたい日を選んで、街のイベントを発見。</p>
           </div>
           <button id="about-close" class="about-close-button" type="button" aria-label="このアプリについてを閉じる">×</button>
         </div>
         <span class="about-badge">個人制作の非公式アプリ</span>
       </div>
       <div id="about-body" class="about-body">
-        <p class="about-lead">浜松市が公開するイベント情報を、地図上で探しやすく整理したWebアプリです。</p>
+        <p class="about-lead">浜松市オープンデータと、ウェブ上で公開されているイベント情報を、地図上で探しやすく整理したWebアプリです。</p>
         <div class="about-feature-grid" aria-label="このアプリでできること">
           <div class="about-feature-card">
             <span class="about-feature-number">01</span>
@@ -196,12 +232,13 @@
         </div>
         <div class="about-primary-actions">
           <button id="about-start" class="about-primary-button" type="button">マップを見る</button>
-          <a class="about-secondary-button" href="https://opendata.pref.shizuoka.jp/dataset/10987.html" target="_blank" rel="noopener">公式データを確認</a>
+          <a class="about-secondary-button" href="https://opendata.pref.shizuoka.jp/dataset/12874.html" target="_blank" rel="noopener">浜松市オープンデータを確認</a>
         </div>
         <details class="about-more">
           <summary>データ利用・免責事項</summary>
           <div class="about-more-content">
-            <p>データ提供：浜松市<br>クリエイティブ・コモンズ・ライセンス 表示2.1 日本</p>
+            <p><strong>浜松市オープンデータ：</strong>データ提供は浜松市、ライセンスはクリエイティブ・コモンズ・ライセンス 表示2.1 日本です。</p>
+            <p><strong>ウェブ参照情報：</strong>イベント主催者・会場・施設等のウェブページや情報掲載ページを参照して整理した情報です。浜松市オープンデータのCC BYライセンスは適用されません。各イベント詳細に参照元URLを表示し、参照元の権利・利用条件に従います。</p>
             <p>本アプリは個人が作成した非公式アプリであり、浜松市が提供・運営するものではありません。表示内容の正確性を保証するものではないため、最新情報は公式サイトでご確認ください。</p>
             <p>位置情報は端末内で処理され、保存されません。</p>
             <p>訪問人数は同じ端末からの同日アクセスを1人とする概算値です。重複防止のためブラウザ内に集計済みの日付だけを保存し、匿名の件数を外部集計サービスに送信します。</p>
@@ -255,18 +292,20 @@
 
           <section>
             <h3>2．使用する情報源</h3>
-            <p>本サービスでは、次の情報源を使用します。</p>
+            <p>本サービスでは、性質と利用条件が異なる次の情報源を使用します。</p>
             <ul>
-              <li>自治体等が公開するオープンデータ</li>
-              <li>イベント主催者、会場または施設が一般公開している公式ウェブページ</li>
+              <li><strong>浜松市オープンデータ：</strong>浜松市が公開する「イベント」データ</li>
+              <li><strong>ウェブ参照情報：</strong>イベント主催者、会場、施設等のウェブページや情報掲載ページを参照し、客観的な事実情報を整理したデータ</li>
               <li>主催者または権利者から掲載の申込みまたは許諾を受けた情報</li>
             </ul>
+            <p>クリエイティブ・コモンズ・ライセンス 表示2.1 日本（CC BY 2.1 日本）が適用されるのは、浜松市オープンデータ「イベント」の部分のみです。ウェブ参照情報を浜松市が提供したデータとして扱うものではなく、浜松市オープンデータのCC BYライセンスも適用されません。</p>
+            <p>ウェブ参照情報については、各イベントに参照元URLを表示し、参照元の権利および利用条件に従います。</p>
             <p>第三者が運営するまとめサイト、個人ブログその他の非公式な情報は、原則として自動収集の対象としません。</p>
           </section>
 
           <section>
             <h3>3．掲載する情報</h3>
-            <p>公式ウェブページから参照する場合は、原則として次の客観的な事実情報に限定します。</p>
+            <p>ウェブページから参照する場合は、原則として次の客観的な事実情報に限定します。</p>
             <ul>
               <li>イベント名称</li>
               <li>開催日および開催時間</li>
@@ -296,9 +335,9 @@
           </section>
 
           <section>
-            <h3>5．公式情報へのリンク</h3>
-            <p>各イベントには、可能な限り情報参照元の名称および公式ウェブページへのリンクを表示します。</p>
-            <p>開催日時、参加条件、中止、延期その他の最新情報については、必ず公式ウェブページをご確認ください。</p>
+            <h3>5．参照元情報へのリンク</h3>
+            <p>各イベントには、可能な限り情報参照元の名称およびウェブページへのリンクを表示します。</p>
+            <p>開催日時、参加条件、中止、延期その他の最新情報については、リンク先の情報をご確認ください。</p>
             <p>外部ページは、本サービス内のフレームに埋め込まず、外部サイトとして開きます。</p>
           </section>
 
@@ -320,9 +359,10 @@
 
           <section>
             <h3>7．オープンデータ</h3>
-            <p>オープンデータは、各データに表示されたライセンス条件に従って利用します。</p>
+            <p>浜松市オープンデータ「イベント」は、クリエイティブ・コモンズ・ライセンス 表示2.1 日本の条件に従って利用します。</p>
             <p>出典表示、ライセンス表示および加工した旨の表示が必要な場合は、本サービス上に表示します。</p>
             <p>オープンデータに含まれる画像、文章その他の第三者著作物について、別の利用条件が示されている場合は、その条件に従います。</p>
+            <p>このライセンス表示はウェブ参照情報には及びません。ウェブ参照情報には、それぞれの参照元の権利および利用条件が適用されます。</p>
           </section>
 
           <section>
@@ -380,7 +420,7 @@
   <script charset="UTF-8" src="assets/js/csv.js"></script>
   <script charset="UTF-8" src="assets/js/utils.js"></script>
   <script charset="UTF-8" src="assets/js/visitor-counter.js?v=2"></script>
-  <script charset="UTF-8" src="assets/app.js?v=26"></script>
+  <script charset="UTF-8" src="assets/app.js?v=29"></script>
   <script>
     if ("serviceWorker" in navigator && location.protocol !== "file:") {
       window.addEventListener("load", () => {
