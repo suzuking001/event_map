@@ -142,19 +142,8 @@
     if (!elements.root || !config) return;
 
     const isProduction = config.productionHosts.includes(location.hostname);
-    if (!isProduction || navigator.webdriver) {
-      setStatus(
-        elements,
-        "preview",
-        "公開版へのアクセス時に人数を集計します"
-      );
-      if (elements.historyDetails) {
-        elements.historyDetails.hidden = true;
-      }
-      return;
-    }
-
-    const storage = getStorage();
+    const isReadOnly = !isProduction || navigator.webdriver;
+    const storage = isReadOnly ? null : getStorage();
     const dateKeys = getRecentDateKeys(config.historyDays, config.timeZone);
     const todayKey = dateKeys[0];
     const totalStorageKey = `${config.storagePrefix}:visitor`;
@@ -203,13 +192,21 @@
         ...pastResults,
       ]);
 
-      const updatedAt = todayResult.updated_at || totalResult.updated_at;
-      const updatedDate = updatedAt ? new Date(updatedAt) : null;
-      const updatedLabel =
-        updatedDate && !Number.isNaN(updatedDate.getTime())
-          ? `最終集計 ${dateTimeFormatter.format(updatedDate)}`
-          : "集計を開始しました";
-      setStatus(elements, "success", updatedLabel);
+      if (isReadOnly) {
+        setStatus(
+          elements,
+          "preview",
+          "プレビュー表示（このアクセスは集計されません）"
+        );
+      } else {
+        const updatedAt = todayResult.updated_at || totalResult.updated_at;
+        const updatedDate = updatedAt ? new Date(updatedAt) : null;
+        const updatedLabel =
+          updatedDate && !Number.isNaN(updatedDate.getTime())
+            ? `最終集計 ${dateTimeFormatter.format(updatedDate)}`
+            : "集計を開始しました";
+        setStatus(elements, "success", updatedLabel);
+      }
     } catch (error) {
       console.warn("Visitor counter unavailable.", error);
       setStatus(

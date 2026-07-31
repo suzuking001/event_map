@@ -1,4 +1,4 @@
-const STATIC_CACHE = "static-v24";
+const STATIC_CACHE = "static-v25";
 const RUNTIME_CACHE = "runtime-v8";
 const DATA_CACHE = "data-v8";
 // Keep the tile cache stable across app releases so repeat map views stay fast.
@@ -13,7 +13,7 @@ const STATIC_ASSETS = [
   "assets/js/config.js?v=13",
   "assets/js/csv.js",
   "assets/js/utils.js",
-  "assets/js/visitor-counter.js?v=1",
+  "assets/js/visitor-counter.js?v=2",
   "assets/js/event-csv-worker.js?v=4",
   "assets/maps/hamamatsu-overview.jpg?v=4",
   "data/current_and_future_events.csv",
