@@ -17,13 +17,28 @@
   const aboutClose = document.getElementById("about-close");
   const aboutButton = document.getElementById("about-button");
   const aboutStart = document.getElementById("about-start");
+  const policyModal = document.getElementById("policy-modal");
+  const policyClose = document.getElementById("policy-close");
+  const policyScroll = document.getElementById("policy-scroll");
+  const policyLinks = document.querySelectorAll("[data-policy-target]");
   const loading = document.getElementById("loading");
+  let policyReturnFocus = null;
 
   const dateStart = document.getElementById("date-start");
   const dateEnd = document.getElementById("date-end");
   const dateClear = document.getElementById("date-clear");
   const dateRangeHint = document.getElementById("date-range-hint");
   const dateInfo = document.getElementById("date-info");
+  const datePickerToggle = document.getElementById("date-picker-toggle");
+  const datePicker = document.getElementById("date-picker");
+  const dateStartDisplay = document.getElementById("date-start-display");
+  const dateEndDisplay = document.getElementById("date-end-display");
+  const datePickerTitle = document.getElementById("date-picker-title");
+  const datePickerGuide = document.getElementById("date-picker-guide");
+  const datePickerClose = document.getElementById("date-picker-close");
+  const calendarMonths = document.getElementById("calendar-months");
+  const calendarPrev = document.getElementById("calendar-prev");
+  const calendarNext = document.getElementById("calendar-next");
   const searchInput = document.getElementById("search-input");
   const categoryFilters = document.getElementById("category-filters");
   const categoryAll = document.getElementById("category-all");
@@ -109,6 +124,33 @@
     if (!trimmed) return null;
     const date = new Date(`${trimmed}T00:00:00`);
     return Number.isNaN(date.getTime()) ? null : date.getTime();
+  };
+
+  const formatInputDate = date => {
+    const pad = value => String(value).padStart(2, "0");
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  };
+
+  const formatFilterDate = value => {
+    const time = parseDateValue(value);
+    if (time == null) return "選択";
+    return new Intl.DateTimeFormat("ja-JP", {
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      weekday: "short",
+    }).format(new Date(time));
+  };
+
+  const formatCalendarDateLabel = value => {
+    const time = parseDateValue(value);
+    if (time == null) return "";
+    return new Intl.DateTimeFormat("ja-JP", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      weekday: "long",
+    }).format(new Date(time));
   };
 
   const formatDateRange = (start, end) => {
@@ -371,6 +413,41 @@
     aboutModal.inert = true;
   };
 
+  const setPolicyOpen = (isOpen, targetId = "data-policy") => {
+    if (!policyModal) {
+      return;
+    }
+    if (isOpen) {
+      setDetailsOpen(false);
+      setAboutOpen(false);
+      policyModal.inert = false;
+      policyModal.setAttribute("aria-hidden", "false");
+      policyModal.classList.add("open");
+      const target = document.getElementById(targetId) ||
+        document.getElementById("data-policy");
+      window.requestAnimationFrame(() => {
+        if (target) {
+          target.scrollIntoView({ block: "start" });
+          target.focus({ preventScroll: true });
+        } else if (policyClose) {
+          policyClose.focus();
+        }
+      });
+      return;
+    }
+    const shouldRestoreFocus = policyModal.contains(document.activeElement);
+    policyModal.classList.remove("open");
+    policyModal.setAttribute("aria-hidden", "true");
+    policyModal.inert = true;
+    if (policyScroll) {
+      policyScroll.scrollTop = 0;
+    }
+    if (shouldRestoreFocus && policyReturnFocus) {
+      policyReturnFocus.focus();
+    }
+    policyReturnFocus = null;
+  };
+
   const setLoading = (isOpen, message = "データを読み込んでいます...") => {
     if (!loading) {
       return;
@@ -574,6 +651,7 @@
       if (event.key === "Escape") {
         setDetailsOpen(false);
         setAboutOpen(false);
+        setPolicyOpen(false);
       }
     });
     if (detailsClose) {
@@ -601,6 +679,29 @@
           setAboutOpen(false);
         }
       });
+    }
+    policyLinks.forEach(link => {
+      link.addEventListener("click", event => {
+        event.preventDefault();
+        if (!policyModal || !policyModal.classList.contains("open")) {
+          policyReturnFocus = link;
+        }
+        setPolicyOpen(true, link.dataset.policyTarget || "data-policy");
+      });
+    });
+    if (policyClose) {
+      policyClose.addEventListener("click", () => setPolicyOpen(false));
+    }
+    if (policyModal) {
+      policyModal.addEventListener("click", event => {
+        if (event.target === policyModal) {
+          setPolicyOpen(false);
+        }
+      });
+    }
+    const initialPolicyTarget = window.location.hash.slice(1);
+    if (["data-policy", "privacy", "correction-request"].includes(initialPolicyTarget)) {
+      setPolicyOpen(true, initialPolicyTarget);
     }
   };
 
@@ -1174,6 +1275,289 @@
 
     map.on("moveend", syncMarkersToViewport);
 
+    let calendarViewDate = new Date();
+    calendarViewDate = new Date(
+      calendarViewDate.getFullYear(),
+      calendarViewDate.getMonth(),
+      1
+    );
+    let selectingRangeEnd = Boolean(
+      dateStart && dateStart.value && dateEnd && !dateEnd.value
+    );
+    let calendarHoverValue = null;
+
+    const getMonthIndex = date => date.getFullYear() * 12 + date.getMonth();
+
+    const getDateFromMonthIndex = monthIndex =>
+      new Date(Math.floor(monthIndex / 12), monthIndex % 12, 1);
+
+    const syncDateTrigger = () => {
+      const startText = dateStart ? dateStart.value : "";
+      const endText = dateEnd ? dateEnd.value : "";
+      if (dateStartDisplay) {
+        dateStartDisplay.textContent = formatFilterDate(startText);
+        dateStartDisplay.classList.toggle("is-placeholder", !startText);
+      }
+      if (dateEndDisplay) {
+        dateEndDisplay.textContent = formatFilterDate(endText);
+        dateEndDisplay.classList.toggle("is-placeholder", !endText);
+      }
+      if (datePickerGuide) {
+        datePickerGuide.textContent = selectingRangeEnd && startText && !endText
+          ? "続けて終了日を選択してください"
+          : "1回目で開始日、2回目で終了日を選択";
+      }
+      if (datePickerToggle) {
+        const label = startText || endText
+          ? `期間 ${formatFilterDate(startText)}から${formatFilterDate(endText)}`
+          : "期間を選択";
+        datePickerToggle.setAttribute("aria-label", label);
+      }
+    };
+
+    const normalizeCalendarView = () => {
+      const minValue = parseDateValue(dateStart ? dateStart.min : "");
+      const maxValue = parseDateValue(dateStart ? dateStart.max : "");
+      let viewIndex = getMonthIndex(calendarViewDate);
+      if (minValue != null) {
+        viewIndex = Math.max(viewIndex, getMonthIndex(new Date(minValue)));
+      }
+      if (maxValue != null) {
+        const maxMonthIndex = getMonthIndex(new Date(maxValue));
+        const minMonthIndex = minValue != null
+          ? getMonthIndex(new Date(minValue))
+          : Number.NEGATIVE_INFINITY;
+        viewIndex = Math.min(viewIndex, Math.max(minMonthIndex, maxMonthIndex - 1));
+      }
+      calendarViewDate = getDateFromMonthIndex(viewIndex);
+    };
+
+    const renderCalendar = () => {
+      if (!calendarMonths || !datePickerTitle) return;
+      normalizeCalendarView();
+
+      const viewMonthIndex = getMonthIndex(calendarViewDate);
+      const minValue = parseDateValue(dateStart ? dateStart.min : "");
+      const maxValue = parseDateValue(dateStart ? dateStart.max : "");
+      const startValue = parseDateValue(dateStart ? dateStart.value : "");
+      const endValue = parseDateValue(dateEnd ? dateEnd.value : "");
+      const todayValue = parseDateValue(formatInputDate(new Date()));
+      let rangeStart = startValue;
+      let rangeEnd = endValue;
+
+      if (selectingRangeEnd && startValue != null && calendarHoverValue != null) {
+        rangeStart = Math.min(startValue, calendarHoverValue);
+        rangeEnd = Math.max(startValue, calendarHoverValue);
+      } else if (startValue != null && endValue == null) {
+        rangeEnd = startValue;
+      }
+
+      const displayStartValue = parseDateValue(formatInputDate(calendarViewDate));
+      const displayEndDate = new Date(
+        calendarViewDate.getFullYear(),
+        calendarViewDate.getMonth() + 2,
+        0
+      );
+      const displayEndValue = parseDateValue(formatInputDate(displayEndDate));
+      const firstEnabledValue = Math.max(
+        displayStartValue == null ? Number.NEGATIVE_INFINITY : displayStartValue,
+        minValue == null ? Number.NEGATIVE_INFINITY : minValue
+      );
+      const preferredValue = startValue != null &&
+        startValue >= displayStartValue && startValue <= displayEndValue
+        ? startValue
+        : todayValue != null && todayValue >= displayStartValue && todayValue <= displayEndValue &&
+          (minValue == null || todayValue >= minValue) &&
+          (maxValue == null || todayValue <= maxValue)
+          ? todayValue
+          : firstEnabledValue;
+
+      calendarMonths.replaceChildren();
+      for (let monthOffset = 0; monthOffset < 2; monthOffset += 1) {
+        const monthDate = new Date(
+          calendarViewDate.getFullYear(),
+          calendarViewDate.getMonth() + monthOffset,
+          1
+        );
+        const year = monthDate.getFullYear();
+        const month = monthDate.getMonth();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const leadingDays = monthDate.getDay();
+        const panel = document.createElement("section");
+        panel.className = "calendar-month";
+
+        const monthTitle = document.createElement("h3");
+        monthTitle.className = "calendar-month-title";
+        monthTitle.id = `calendar-month-title-${monthOffset}`;
+        monthTitle.textContent = `${year}年 ${month + 1}月`;
+        panel.appendChild(monthTitle);
+
+        const weekdays = document.createElement("div");
+        weekdays.className = "calendar-weekdays";
+        weekdays.setAttribute("aria-hidden", "true");
+        ["日", "月", "火", "水", "木", "金", "土"].forEach(label => {
+          const weekday = document.createElement("span");
+          weekday.textContent = label;
+          weekdays.appendChild(weekday);
+        });
+        panel.appendChild(weekdays);
+
+        const grid = document.createElement("div");
+        grid.className = "calendar-grid";
+        grid.setAttribute("role", "group");
+        grid.setAttribute("aria-labelledby", monthTitle.id);
+        for (let index = 0; index < leadingDays; index += 1) {
+          const spacer = document.createElement("span");
+          spacer.className = "calendar-day-spacer";
+          spacer.setAttribute("role", "presentation");
+          grid.appendChild(spacer);
+        }
+
+        for (let day = 1; day <= daysInMonth; day += 1) {
+          const dateValue = formatInputDate(new Date(year, month, day));
+          const timeValue = parseDateValue(dateValue);
+          const isDisabled = timeValue == null ||
+            (minValue != null && timeValue < minValue) ||
+            (maxValue != null && timeValue > maxValue);
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "calendar-day";
+          button.textContent = String(day);
+          button.dataset.date = dateValue;
+          button.disabled = isDisabled;
+          button.setAttribute("aria-label", formatCalendarDateLabel(dateValue));
+          button.tabIndex = !isDisabled && timeValue === preferredValue ? 0 : -1;
+
+          if (timeValue === todayValue) button.classList.add("is-today");
+          if (rangeStart != null && rangeEnd != null && timeValue >= rangeStart && timeValue <= rangeEnd) {
+            button.classList.add("is-in-range");
+          }
+          if (rangeStart != null && timeValue === rangeStart) {
+            button.classList.add("is-range-start");
+            button.setAttribute("aria-selected", "true");
+          }
+          if (rangeEnd != null && timeValue === rangeEnd) {
+            button.classList.add("is-range-end");
+            button.setAttribute("aria-selected", "true");
+          }
+          grid.appendChild(button);
+        }
+        panel.appendChild(grid);
+        calendarMonths.appendChild(panel);
+      }
+
+      if (calendarPrev) {
+        calendarPrev.disabled = minValue != null &&
+          viewMonthIndex <= getMonthIndex(new Date(minValue));
+      }
+      if (calendarNext) {
+        calendarNext.disabled = maxValue != null &&
+          viewMonthIndex + 1 >= getMonthIndex(new Date(maxValue));
+      }
+      syncDateTrigger();
+    };
+
+    const positionDatePicker = () => {
+      if (!datePicker || !datePickerToggle || datePicker.hidden) return;
+      if (window.matchMedia("(max-width: 768px)").matches) {
+        datePicker.style.removeProperty("top");
+        datePicker.style.removeProperty("left");
+        datePicker.style.removeProperty("width");
+        return;
+      }
+
+      const triggerRect = datePickerToggle.getBoundingClientRect();
+      const gap = 12;
+      const left = triggerRect.right + gap;
+      const availableWidth = Math.max(420, window.innerWidth - left - gap);
+      datePicker.style.left = `${left}px`;
+      datePicker.style.width = `${Math.min(680, availableWidth)}px`;
+      const top = Math.max(
+        gap,
+        Math.min(triggerRect.top, window.innerHeight - datePicker.offsetHeight - gap)
+      );
+      datePicker.style.top = `${top}px`;
+    };
+
+    const setDatePickerOpen = (isOpen, restoreFocus = false) => {
+      if (!datePicker || !datePickerToggle) return;
+      datePicker.hidden = !isOpen;
+      datePickerToggle.setAttribute("aria-expanded", String(isOpen));
+      if (isOpen) {
+        const referenceValue = dateStart && dateStart.value
+          ? parseDateValue(dateStart.value)
+          : parseDateValue(formatInputDate(new Date()));
+        if (referenceValue != null) {
+          const referenceDate = new Date(referenceValue);
+          calendarViewDate = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), 1);
+        }
+        selectingRangeEnd = Boolean(dateStart && dateStart.value && dateEnd && !dateEnd.value);
+        renderCalendar();
+        positionDatePicker();
+        setTimeout(() => {
+          const selected = calendarMonths && calendarMonths.querySelector(".calendar-day[tabindex='0']");
+          if (selected) selected.focus();
+        }, 0);
+      } else {
+        calendarHoverValue = null;
+        if (restoreFocus) datePickerToggle.focus();
+      }
+    };
+
+    const selectCalendarDate = dateValue => {
+      if (!dateStart || !dateEnd) return;
+      const selectedValue = parseDateValue(dateValue);
+      if (selectedValue == null) return;
+
+      const currentStart = parseDateValue(dateStart.value);
+      if (!selectingRangeEnd || currentStart == null || dateEnd.value) {
+        dateStart.value = dateValue;
+        dateEnd.value = "";
+        selectingRangeEnd = true;
+        calendarHoverValue = null;
+        syncDateTrigger();
+        focusCalendarDate(dateValue);
+        applyFilters();
+        return;
+      }
+
+      if (selectedValue < currentStart) {
+        dateEnd.value = dateStart.value;
+        dateStart.value = dateValue;
+      } else {
+        dateEnd.value = dateValue;
+      }
+      selectingRangeEnd = false;
+      calendarHoverValue = null;
+      syncDateTrigger();
+      renderCalendar();
+      applyFilters();
+      setDatePickerOpen(false, true);
+    };
+
+    const focusCalendarDate = dateValue => {
+      const value = parseDateValue(dateValue);
+      if (value == null) return;
+      const targetDate = new Date(value);
+      const targetMonthIndex = getMonthIndex(targetDate);
+      const currentMonthIndex = getMonthIndex(calendarViewDate);
+      if (targetMonthIndex < currentMonthIndex) {
+        calendarViewDate = getDateFromMonthIndex(targetMonthIndex);
+      } else if (targetMonthIndex > currentMonthIndex + 1) {
+        calendarViewDate = getDateFromMonthIndex(targetMonthIndex - 1);
+      }
+      renderCalendar();
+      setTimeout(() => {
+        const target = calendarMonths && calendarMonths.querySelector(`[data-date="${dateValue}"]`);
+        if (target && !target.disabled) {
+          calendarMonths.querySelectorAll(".calendar-day").forEach(day => {
+            day.tabIndex = day === target ? 0 : -1;
+          });
+          target.focus();
+        }
+      }, 0);
+    };
+
     const matchesDateRange = (event, startFilter, endFilter) => {
       const eventStart = event.startValue;
       const eventEnd = event.endValue || eventStart;
@@ -1237,14 +1621,14 @@
       if (dateInfo) {
         if (startText || endText) {
           if (startText && endText) {
-            dateInfo.textContent = `選択期間: ${startText} ～ ${endText} / 表示中: ${visible}件`;
+            dateInfo.textContent = `${formatFilterDate(startText)} → ${formatFilterDate(endText)}・${visible}件表示`;
           } else if (startText) {
-            dateInfo.textContent = `開始日以降: ${startText} / 表示中: ${visible}件`;
+            dateInfo.textContent = `${formatFilterDate(startText)}以降・終了日を選択中`;
           } else {
-            dateInfo.textContent = `終了日以前: ${endText} / 表示中: ${visible}件`;
+            dateInfo.textContent = `${formatFilterDate(endText)}以前・${visible}件表示`;
           }
         } else {
-          dateInfo.textContent = `未選択 / 全日表示 / 表示中: ${visible}件`;
+          dateInfo.textContent = "期間を選択すると表示されます";
         }
       }
     };
@@ -1260,36 +1644,36 @@
         return;
       }
 
-      const pad = value => String(value).padStart(2, "0");
-      const formatDate = date =>
-        `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-      dateStart.min = formatDate(new Date(minDateValue));
+      dateStart.min = formatInputDate(new Date(minDateValue));
       dateEnd.min = dateStart.min;
-      dateStart.max = formatDate(new Date(maxDateValue));
+      dateStart.max = formatInputDate(new Date(maxDateValue));
       dateEnd.max = dateStart.max;
       if (dateRangeHint) {
-        dateRangeHint.textContent = `確認可能期間: ${dateStart.min} ～ ${dateEnd.max}`;
+        dateRangeHint.textContent = `選択可能: ${formatFilterDate(dateStart.min)}〜${formatFilterDate(dateEnd.max)}`;
       }
 
-      if (!initializeDates || dateStart.value || dateEnd.value) return;
-      const today = new Date();
-      const todayText = formatDate(today);
-      const todayValue = parseDateValue(todayText);
-      if (
-        todayValue == null ||
-        todayValue < minDateValue ||
-        todayValue > maxDateValue
-      ) {
-        return;
+      if (initializeDates && !dateStart.value && !dateEnd.value) {
+        const today = new Date();
+        const todayText = formatInputDate(today);
+        const todayValue = parseDateValue(todayText);
+        if (
+          todayValue != null &&
+          todayValue >= minDateValue &&
+          todayValue <= maxDateValue
+        ) {
+          const oneWeekLater = new Date(today);
+          oneWeekLater.setDate(oneWeekLater.getDate() + 7);
+          const endText = formatInputDate(oneWeekLater);
+          const endValue = parseDateValue(endText);
+          dateStart.value = todayText;
+          dateEnd.value = endValue != null && endValue <= maxDateValue
+            ? endText
+            : dateEnd.max;
+        }
       }
-      const oneWeekLater = new Date(today);
-      oneWeekLater.setDate(oneWeekLater.getDate() + 7);
-      const endText = formatDate(oneWeekLater);
-      const endValue = parseDateValue(endText);
-      dateStart.value = todayText;
-      dateEnd.value = endValue != null && endValue <= maxDateValue
-        ? endText
-        : dateEnd.max;
+      selectingRangeEnd = Boolean(dateStart.value && !dateEnd.value);
+      syncDateTrigger();
+      if (datePicker && !datePicker.hidden) renderCalendar();
     };
 
     const replaceEventData = (payload, initializeDates = false) => {
@@ -1325,18 +1709,146 @@
     };
 
     if (dateStart) {
-      dateStart.addEventListener("change", applyFilters);
+      dateStart.addEventListener("change", () => {
+        selectingRangeEnd = Boolean(dateStart.value && dateEnd && !dateEnd.value);
+        syncDateTrigger();
+        applyFilters();
+      });
     }
     if (dateEnd) {
-      dateEnd.addEventListener("change", applyFilters);
+      dateEnd.addEventListener("change", () => {
+        selectingRangeEnd = Boolean(dateStart && dateStart.value && !dateEnd.value);
+        syncDateTrigger();
+        applyFilters();
+      });
     }
     if (dateClear) {
       dateClear.addEventListener("click", () => {
         if (dateStart) dateStart.value = "";
         if (dateEnd) dateEnd.value = "";
+        selectingRangeEnd = false;
+        calendarHoverValue = null;
+        syncDateTrigger();
+        setDatePickerOpen(false);
         applyFilters();
       });
     }
+    if (datePickerToggle && datePicker) {
+      datePickerToggle.addEventListener("click", () => {
+        setDatePickerOpen(datePicker.hidden);
+      });
+    }
+    if (datePickerClose) {
+      datePickerClose.addEventListener("click", () => {
+        setDatePickerOpen(false, true);
+      });
+    }
+    if (calendarPrev) {
+      calendarPrev.addEventListener("click", () => {
+        calendarViewDate = new Date(
+          calendarViewDate.getFullYear(),
+          calendarViewDate.getMonth() - 1,
+          1
+        );
+        renderCalendar();
+      });
+    }
+    if (calendarNext) {
+      calendarNext.addEventListener("click", () => {
+        calendarViewDate = new Date(
+          calendarViewDate.getFullYear(),
+          calendarViewDate.getMonth() + 1,
+          1
+        );
+        renderCalendar();
+      });
+    }
+    if (calendarMonths) {
+      calendarMonths.addEventListener("click", event => {
+        // The calendar is redrawn after choosing the start date. Keep this
+        // click from reaching the outside-click handler with a detached target.
+        event.stopPropagation();
+        const day = event.target.closest(".calendar-day");
+        if (!day || day.disabled) return;
+        selectCalendarDate(day.dataset.date || "");
+      });
+      calendarMonths.addEventListener("pointerover", event => {
+        const day = event.target.closest(".calendar-day");
+        if (!day || day.disabled || !selectingRangeEnd) return;
+        const value = parseDateValue(day.dataset.date || "");
+        if (value === calendarHoverValue) return;
+        calendarHoverValue = value;
+        renderCalendar();
+      });
+      calendarMonths.addEventListener("pointerleave", () => {
+        if (calendarHoverValue == null) return;
+        calendarHoverValue = null;
+        renderCalendar();
+      });
+      calendarMonths.addEventListener("keydown", event => {
+        const day = event.target.closest(".calendar-day");
+        if (!day) return;
+        const currentValue = parseDateValue(day.dataset.date || "");
+        if (currentValue == null) return;
+
+        const dayOffsets = {
+          ArrowLeft: -1,
+          ArrowRight: 1,
+          ArrowUp: -7,
+          ArrowDown: 7,
+        };
+        let nextDate = null;
+        if (Object.prototype.hasOwnProperty.call(dayOffsets, event.key)) {
+          nextDate = new Date(currentValue);
+          nextDate.setDate(nextDate.getDate() + dayOffsets[event.key]);
+        } else if (event.key === "PageUp" || event.key === "PageDown") {
+          const currentDate = new Date(currentValue);
+          const monthOffset = event.key === "PageUp" ? -1 : 1;
+          const targetMonthEnd = new Date(
+            currentDate.getFullYear(),
+            currentDate.getMonth() + monthOffset + 1,
+            0
+          ).getDate();
+          nextDate = new Date(
+            currentDate.getFullYear(),
+            currentDate.getMonth() + monthOffset,
+            Math.min(currentDate.getDate(), targetMonthEnd)
+          );
+        }
+        if (!nextDate) return;
+
+        const nextValue = parseDateValue(formatInputDate(nextDate));
+        const minValue = parseDateValue(dateStart ? dateStart.min : "");
+        const maxValue = parseDateValue(dateStart ? dateStart.max : "");
+        if (nextValue == null ||
+          (minValue != null && nextValue < minValue) ||
+          (maxValue != null && nextValue > maxValue)) return;
+        event.preventDefault();
+        focusCalendarDate(formatInputDate(nextDate));
+      });
+    }
+    document.addEventListener("click", event => {
+      if (!datePicker || datePicker.hidden) return;
+      const eventPath = typeof event.composedPath === "function"
+        ? event.composedPath()
+        : [];
+      const clickedInsidePicker = eventPath.includes(datePicker) ||
+        datePicker.contains(event.target);
+      const clickedToggle = datePickerToggle &&
+        (eventPath.includes(datePickerToggle) || datePickerToggle.contains(event.target));
+      if (!clickedInsidePicker && !clickedToggle) {
+        setDatePickerOpen(false);
+      }
+    });
+    document.addEventListener("keydown", event => {
+      if (event.key === "Escape" && datePicker && !datePicker.hidden) {
+        event.preventDefault();
+        setDatePickerOpen(false, true);
+      }
+    });
+    window.addEventListener("resize", () => {
+      if (datePicker && !datePicker.hidden) positionDatePicker();
+    });
     if (categoryFilters) {
       categoryFilters.addEventListener("change", applyFilters);
     }

@@ -29,7 +29,7 @@
     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
     crossorigin=""
   />
-  <link rel="stylesheet" href="assets/styles.css?v=13" />
+  <link rel="stylesheet" href="assets/styles.css?v=16" />
 </head>
 <body>
   <button id="menu-toggle" class="menu-toggle" aria-label="メニューを開く" aria-expanded="true" aria-controls="side-menu">
@@ -42,22 +42,35 @@
       <div class="menu-header">浜松市 イベントマップ</div>
       <button id="menu-close" class="menu-close" type="button" aria-label="メニューを閉じる">×</button>
     </div>
-    <div class="menu-catch">
-      <div><strong>ポイント</strong> 期間指定で必要なイベントだけを地図で直感的に把握できます。</div>
-      <div><strong>○</strong>浜松市のイベント情報を地図で確認できます。</div>
-      <div><strong>○</strong> 期間やカテゴリで絞り込むと探しやすいです。</div>
-      <div><strong>○</strong> マップ上のイベントをクリックすると詳細が表示されます。</div>
-      <div><strong>○</strong> 公式情報は下記サイトをご確認ください。</div>
-      <div><a href="https://opendata.pref.shizuoka.jp/dataset/10987.html" target="_blank" rel="noopener">https://opendata.pref.shizuoka.jp/dataset/10987.html</a></div>
-    </div>
-    <div id="date-range-hint" class="menu-hint"></div>
-    <label class="menu-label" for="date-start">開始日</label>
-    <input id="date-start" class="menu-input" type="date">
-    <label class="menu-label" for="date-end">終了日</label>
-    <input id="date-end" class="menu-input" type="date">
-    <div class="menu-actions">
-      <button id="date-clear" class="menu-button" type="button">期間リセット</button>
-    </div>
+    <p class="menu-intro">行きたい日を選ぶと、開催中のイベントが地図に表示されます。</p>
+    <section class="date-filter" aria-labelledby="date-filter-title">
+      <div class="date-filter-heading">
+        <h2 id="date-filter-title">いつ行きますか？</h2>
+        <button id="date-clear" class="date-clear-button" type="button">クリア</button>
+      </div>
+      <button
+        id="date-picker-toggle"
+        class="date-range-trigger"
+        type="button"
+        aria-expanded="false"
+        aria-controls="date-picker"
+      >
+        <span class="calendar-glyph" aria-hidden="true"></span>
+        <span class="date-range-part">
+          <small>開始日</small>
+          <strong id="date-start-display">選択</strong>
+        </span>
+        <span class="date-range-arrow" aria-hidden="true">→</span>
+        <span class="date-range-part">
+          <small>終了日</small>
+          <strong id="date-end-display">選択</strong>
+        </span>
+      </button>
+      <input id="date-start" type="hidden">
+      <input id="date-end" type="hidden">
+      <div id="date-info" class="date-filter-summary">期間を選択すると表示されます</div>
+      <div id="date-range-hint" class="date-range-hint"></div>
+    </section>
     <label class="menu-label" for="search-input">キーワード検索</label>
     <input id="search-input" class="menu-input" type="text" placeholder="例: 音楽, 公園, ワークショップ">
     <div class="menu-section">
@@ -76,7 +89,6 @@
         対象データ: <span id="total-count">0</span>件
       </div>
     </div>
-    <div id="date-info" class="menu-hint">未選択 / 全日表示</div>
     <div id="data-refresh-status" class="menu-hint data-refresh-status" role="status" aria-live="polite">
       イベント情報を確認しています...
     </div>
@@ -119,6 +131,25 @@
       </div>
     </div>
   </aside>
+  <div
+    id="date-picker"
+    class="date-picker"
+    role="dialog"
+    aria-modal="false"
+    aria-labelledby="date-picker-title"
+    hidden
+  >
+    <div class="date-picker-header">
+      <button id="calendar-prev" class="calendar-nav" type="button" aria-label="前の月">‹</button>
+      <strong id="date-picker-title">期間を選択</strong>
+      <button id="calendar-next" class="calendar-nav" type="button" aria-label="次の月">›</button>
+    </div>
+    <div id="calendar-months" class="calendar-months"></div>
+    <div class="date-picker-footer">
+      <p id="date-picker-guide" class="date-picker-guide" aria-live="polite">1回目で開始日、2回目で終了日を選択</p>
+      <button id="date-picker-close" class="date-picker-close" type="button">閉じる</button>
+    </div>
+  </div>
   <div id="loading" class="loading" aria-live="polite" aria-hidden="true"></div>
   <div id="map"></div>
   <div id="details-modal" class="details-modal" aria-hidden="true" role="dialog" aria-label="イベント詳細">
@@ -178,9 +209,7 @@
         </details>
         <section class="about-author" aria-labelledby="about-author-title">
           <div>
-            <span class="about-author-label">DEVELOPER</span>
-            <h2 id="about-author-title">鈴木久崇 / Suzuki Hisataka</h2>
-            <p>製造シミュレーションや自治体オープンデータを活用したWebアプリを開発しています。</p>
+
           </div>
           <div class="about-links">
             <a href="https://github.com/suzuking001" target="_blank" rel="noopener">GitHub</a>
@@ -189,6 +218,156 @@
         </section>
       </div>
     </div>
+  </div>
+
+  <footer class="site-policy-footer" aria-label="方針・お問い合わせ">
+    <nav class="site-policy-links" aria-label="サイト方針">
+      <a href="data-policy.html">データ収集・掲載方針</a>
+      <a href="privacy.html">プライバシー</a>
+      <a href="correction-request.html">訂正・削除依頼</a>
+    </nav>
+  </footer>
+
+  <div id="policy-modal" class="details-modal policy-modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="policy-modal-title" inert>
+    <article class="details-container policy-container" role="document">
+      <header class="policy-header">
+        <div>
+          <span class="policy-eyebrow">EVENT_MAP POLICY</span>
+          <h1 id="policy-modal-title">方針・プライバシー</h1>
+        </div>
+        <button id="policy-close" class="policy-close-button" type="button" aria-label="方針・プライバシーを閉じる">×</button>
+      </header>
+      <nav class="policy-local-nav" aria-label="このページの内容">
+        <a href="#data-policy" data-policy-target="data-policy">データ収集・掲載方針</a>
+        <a href="#privacy" data-policy-target="privacy">プライバシー</a>
+        <a href="#correction-request" data-policy-target="correction-request">訂正・削除依頼</a>
+      </nav>
+      <div id="policy-scroll" class="policy-scroll">
+        <section id="data-policy" class="policy-document" tabindex="-1" aria-labelledby="data-policy-title">
+          <h2 id="data-policy-title">event_map データ収集・掲載方針</h2>
+          <p class="policy-updated">最終更新日：2026年7月31日</p>
+
+          <section>
+            <h3>1．本サービスについて</h3>
+            <p>event_mapは、地域で開催されるイベントを見つけやすくすることを目的として、イベントの開催日時、場所その他の客観的な情報を地図上に整理して提供する個人運営の非公式サービスです。</p>
+            <p>本サービスは、掲載する施設、企業、自治体およびイベント主催者が提供または運営する公式サービスではありません。</p>
+          </section>
+
+          <section>
+            <h3>2．使用する情報源</h3>
+            <p>本サービスでは、次の情報源を使用します。</p>
+            <ul>
+              <li>自治体等が公開するオープンデータ</li>
+              <li>イベント主催者、会場または施設が一般公開している公式ウェブページ</li>
+              <li>主催者または権利者から掲載の申込みまたは許諾を受けた情報</li>
+            </ul>
+            <p>第三者が運営するまとめサイト、個人ブログその他の非公式な情報は、原則として自動収集の対象としません。</p>
+          </section>
+
+          <section>
+            <h3>3．掲載する情報</h3>
+            <p>公式ウェブページから参照する場合は、原則として次の客観的な事実情報に限定します。</p>
+            <ul>
+              <li>イベント名称</li>
+              <li>開催日および開催時間</li>
+              <li>会場名</li>
+              <li>所在地</li>
+              <li>参加料金</li>
+              <li>対象者または対象年齢</li>
+              <li>申込みの要否および申込期限</li>
+              <li>主催者または問い合わせ先となる団体名</li>
+              <li>公式ウェブページのURL</li>
+              <li>情報を確認した日時</li>
+            </ul>
+          </section>
+
+          <section>
+            <h3>4．掲載しない情報</h3>
+            <p>明確な再利用ライセンスまたは権利者の許諾がない限り、次の情報は掲載または保存しません。</p>
+            <ul>
+              <li>イベントの紹介文、記事本文およびキャッチコピー</li>
+              <li>写真、イラスト、ポスターおよびバナー</li>
+              <li>企業、施設または主催者のロゴ</li>
+              <li>ウェブページのスクリーンショット</li>
+              <li>出演者等のプロフィール文章</li>
+              <li>個人の携帯電話番号、個人メールアドレスその他必要性の低い個人情報</li>
+            </ul>
+            <p>説明文を表示する場合は、取得元の文章を転載または言い換えるのではなく、客観的な事実情報から本サービス独自の定型文を生成します。</p>
+          </section>
+
+          <section>
+            <h3>5．公式情報へのリンク</h3>
+            <p>各イベントには、可能な限り情報参照元の名称および公式ウェブページへのリンクを表示します。</p>
+            <p>開催日時、参加条件、中止、延期その他の最新情報については、必ず公式ウェブページをご確認ください。</p>
+            <p>外部ページは、本サービス内のフレームに埋め込まず、外部サイトとして開きます。</p>
+          </section>
+
+          <section>
+            <h3>6．情報取得の方法</h3>
+            <p>公式ウェブページを自動確認する場合は、次の方針で運用します。</p>
+            <ul>
+              <li>公開されているページのみを対象とします。</li>
+              <li>ログイン、CAPTCHA、アクセス制限その他の技術的制限を回避しません。</li>
+              <li>robots.txtおよび各サイトの利用条件を確認します。</li>
+              <li>原則として、同一情報源の確認は1日1回以下とします。</li>
+              <li>複数ページを確認する場合は、アクセス間隔を設けます。</li>
+              <li>キャッシュや更新日時を利用し、不要な再取得を避けます。</li>
+              <li>HTTP 403または429等が返された場合は、自動取得を停止します。</li>
+              <li>情報提供元から停止要請を受けた場合は、速やかに停止します。</li>
+            </ul>
+            <p>なお、robots.txtにより取得が禁止されていないことのみをもって、転載または再利用の許可があるとは判断しません。</p>
+          </section>
+
+          <section>
+            <h3>7．オープンデータ</h3>
+            <p>オープンデータは、各データに表示されたライセンス条件に従って利用します。</p>
+            <p>出典表示、ライセンス表示および加工した旨の表示が必要な場合は、本サービス上に表示します。</p>
+            <p>オープンデータに含まれる画像、文章その他の第三者著作物について、別の利用条件が示されている場合は、その条件に従います。</p>
+          </section>
+
+          <section>
+            <h3>8．正確性</h3>
+            <p>掲載情報について可能な範囲で確認を行いますが、正確性、完全性および最新性を保証するものではありません。</p>
+            <p>イベントの参加前に、主催者または会場の公式情報をご確認ください。</p>
+          </section>
+
+          <section id="correction-request" tabindex="-1">
+            <h3>9．訂正および削除</h3>
+            <p>主催者、施設、情報提供元または権利者から、掲載情報の訂正、削除または自動取得の停止を求められた場合は、内容を確認したうえで速やかに対応します。</p>
+            <p>訂正または削除を希望される場合は、次の情報をご連絡ください。</p>
+            <ul>
+              <li>対象となるイベント名</li>
+              <li>event_map上のページまたは表示箇所</li>
+              <li>公式情報を確認できるURL</li>
+              <li>希望する対応内容</li>
+              <li>連絡者とイベントとの関係</li>
+            </ul>
+            <p class="policy-contact"><strong>問い合わせ先：</strong><a href="https://github.com/suzuking001/event_map/issues/new" target="_blank" rel="noopener">event_map GitHub Issues（新規依頼を作成）</a></p>
+            <p class="policy-caution">GitHub Issuesは公開されます。個人の電話番号・メールアドレスなど、公開を希望しない情報は記載しないでください。</p>
+          </section>
+
+          <section>
+            <h3>10．方針の変更</h3>
+            <p>法令、情報提供元の利用条件またはサービス内容の変更に応じて、本方針を変更することがあります。重要な変更を行った場合は、本ページ上でお知らせします。</p>
+          </section>
+        </section>
+
+        <section id="privacy" class="policy-document policy-privacy" tabindex="-1" aria-labelledby="privacy-title">
+          <h2 id="privacy-title">プライバシー</h2>
+          <p class="policy-updated">最終更新日：2026年7月31日</p>
+          <p>event_mapの運営者は、サービスの提供に必要な範囲を超えて利用者の個人情報を収集しません。</p>
+          <ul>
+            <li>本サービス上で、利用者の氏名、メールアドレス、電話番号の入力を求めることはありません。</li>
+            <li>現在地を表示する機能で取得した位置情報は端末内でのみ処理し、保存または外部送信しません。</li>
+            <li>本サービス独自のCookieは使用しません。</li>
+            <li>訪問人数の重複集計を避けるため、集計済みの日付をブラウザのローカルストレージに保存します。</li>
+            <li>累計・当日・日別の匿名の件数を外部集計サービス（CounterAPI）へ送信します。氏名や位置情報は含みません。</li>
+          </ul>
+          <p>ブラウザに保存された集計済みの日付は、ブラウザのサイトデータを削除することで消去できます。</p>
+          <p>本サービスの配信基盤（GitHub Pages）、外部集計サービス、外部の公式ウェブページでは、接続に伴うIPアドレス等が各サービスの方針に基づいて処理される場合があります。詳しくは各サービスのプライバシーポリシーをご確認ください。</p>
+        </section>
+      </div>
+    </article>
   </div>
   <script
     charset="UTF-8"
@@ -201,7 +380,7 @@
   <script charset="UTF-8" src="assets/js/csv.js"></script>
   <script charset="UTF-8" src="assets/js/utils.js"></script>
   <script charset="UTF-8" src="assets/js/visitor-counter.js?v=2"></script>
-  <script charset="UTF-8" src="assets/app.js?v=22"></script>
+  <script charset="UTF-8" src="assets/app.js?v=26"></script>
   <script>
     if ("serviceWorker" in navigator && location.protocol !== "file:") {
       window.addEventListener("load", () => {
