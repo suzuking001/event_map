@@ -2269,6 +2269,188 @@ body:not(:has(.side-menu.open)) .floating-result {
   transform: translate(-50%, 0);
 }
 
+.share-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 2600;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  box-sizing: border-box;
+  background: rgba(24, 49, 79, 0.52);
+  backdrop-filter: blur(9px);
+}
+
+.share-sheet.open {
+  display: flex;
+}
+
+.share-sheet-card {
+  width: min(480px, 100%);
+  padding: 20px;
+  border: 3px solid var(--festival-navy);
+  border-radius: 24px;
+  background: var(--festival-cream);
+  box-shadow: 0 9px 0 rgba(24, 49, 79, 0.22), 0 28px 65px rgba(24, 49, 79, 0.34);
+}
+
+.share-sheet-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.share-sheet-eyebrow {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--festival-coral);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.15em;
+}
+
+.share-sheet h2 {
+  margin: 0;
+  color: var(--festival-navy);
+  font-size: 21px;
+  line-height: 1.35;
+}
+
+.share-sheet-close {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  border: 2px solid var(--festival-navy);
+  border-radius: 14px;
+  color: var(--festival-navy);
+  background: #fff;
+  box-shadow: 0 3px 0 rgba(24, 49, 79, 0.16);
+  font-size: 22px;
+  cursor: pointer;
+}
+
+.share-sheet-description {
+  margin: 9px 0 15px;
+  color: #526a82;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.share-sheet-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.share-choice {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  min-height: 64px;
+  padding: 9px 13px;
+  border: 2px solid var(--festival-navy);
+  border-radius: 16px;
+  color: var(--festival-navy);
+  background: #fff;
+  box-shadow: 0 4px 0 rgba(24, 49, 79, 0.14);
+  text-align: left;
+  cursor: pointer;
+}
+
+.share-choice:hover {
+  transform: translateY(-1px);
+}
+
+.share-choice-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  background: rgba(24, 49, 79, 0.08);
+  font-size: 23px;
+  font-weight: 900;
+}
+
+.share-choice > span:last-child {
+  display: grid;
+  gap: 2px;
+}
+
+.share-choice strong {
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.share-choice small {
+  color: #60758a;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.share-choice-x {
+  color: #fff;
+  background: #0f1419;
+}
+
+.share-choice-x .share-choice-icon {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.share-choice-x small {
+  color: #d6dce1;
+}
+
+.share-choice-facebook {
+  color: #fff;
+  background: #1877f2;
+}
+
+.share-choice-facebook .share-choice-icon {
+  color: #1877f2;
+  background: #fff;
+  font-family: Arial, sans-serif;
+  font-size: 31px;
+}
+
+.share-choice-facebook small {
+  color: #e7f0ff;
+}
+
+.share-choice-instagram {
+  background:
+    linear-gradient(#fff, #fff) padding-box,
+    linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045) border-box;
+  border-color: transparent;
+}
+
+.share-choice-instagram .share-choice-icon {
+  color: #fff;
+  background: linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045);
+  font-size: 28px;
+}
+
+.share-choice:disabled {
+  cursor: wait;
+  opacity: 0.66;
+  transform: none;
+}
+
+.share-choice-copy {
+  background: #dffaf6;
+}
+
+.share-choice-native[hidden] {
+  display: none;
+}
+
 .event-marker {
   width: 30px;
   height: 30px;
@@ -2643,6 +2825,17 @@ body:not(:has(.side-menu.open)) .floating-result {
   .detail-row {
     grid-template-columns: 1fr;
   }
+
+  .share-sheet {
+    align-items: flex-end;
+    padding: 10px;
+  }
+
+  .share-sheet-card {
+    width: 100%;
+    padding: 18px;
+    border-radius: 24px 24px 18px 18px;
+  }
 }
 
 @media (max-width: 390px) {
@@ -2661,6 +2854,7 @@ body:not(:has(.side-menu.open)) .floating-result {
   .event-share-button,
   .floating-result,
   .share-toast,
+  .share-choice,
   .event-group-list-item,
   .event-marker,
   .event-marker-group {

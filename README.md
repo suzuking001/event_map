@@ -2,7 +2,7 @@
 ![浜松市イベントマップの画面](%E3%82%B9%E3%82%AF%E3%83%AA%E3%83%BC%E3%83%B3%E3%82%B7%E3%83%A7%E3%83%83%E3%83%88%202026-02-07%20182216.png)
 
 
-浜松市のオープンデータ「イベント」CSVと、各ウェブページを参照して整理したイベント情報を読み込み、地図上で可視化する静的Webアプリです。
+浜松市・大阪府・鳥取県・岡崎市のイベントオープンデータと、各ウェブページを参照して整理したイベント情報を読み込み、地図上で可視化する静的Webアプリです。
 
 ## デモ
 - https://suzuking001.github.io/event_map/
@@ -10,9 +10,11 @@
 ## 特徴
 - CSVからイベントを読み込み、地図上にマーカー表示
 - 期間（開始日/終了日）、カテゴリ、キーワードで絞り込み
+- 「大阪」「鳥取」「岡崎」などの地域名で検索すると対象地域へ自動移動
 - 初回起動時に使い方とデータ利用上の注意を案内
 - クリックでイベントの開催日・時間・会場を優先した詳細カードを表示
-- イベント単位または現在の絞り込み条件をWeb Share API／リンクコピーで共有
+- イベント単位または現在の絞り込み条件をX・Facebook・リンクコピーで共有
+- Instagramストーリーズ向けの1080×1920画像をブラウザ内で生成し、共有リンクも同時にコピー
 - イベント参照元ページへのリンクボタン + Google検索ボタン
 - 詳細画面でWEBサイトのファビコンを表示（簡易プレビュー）
 - 累計・当日・直近7日間の訪問人数を匿名の概算値で表示
@@ -64,10 +66,29 @@ Service Workerにより、次回以降の読み込みが速くなります。
 - 浜松市オープンデータ「イベント」（CC BY 2.1 日本）
   - https://opendata.pref.shizuoka.jp/dataset/12874.html
   - https://static.hamamatsu.odpf.net/opendata/v01/221309_hamamatsu_event/221309_hamamatsu_event.csv
+- 大阪府イベント一覧（CC BY 4.0）
+  - https://data.bodik.jp/dataset/270008_event
+  - `data/osaka_events.csv`
+- とっとりイベントナビ（同サイトのオープンデータ利用条件）
+  - https://tottori-eventnavi.jp/opendata
+  - `data/tottori_events.csv`
+- 岡崎市イベント一覧（CC BY 4.0）
+  - https://data.bodik.jp/dataset/232025_event
+  - `data/okazaki_events.csv`
 - ウェブ参照情報
   - `data/current_and_future_events.csv`
   - イベント主催者、会場、施設等のウェブページや情報掲載ページを参照して、客観的な事実情報を整理したデータです。
-  - 各行の `URL` が参照元です。浜松市オープンデータのCC BYライセンスは適用されません。
+  - 各行の `URL` が参照元です。各オープンデータのライセンスは適用されません。
+
+### 地域オープンデータの更新
+
+外部配信元はブラウザ向けCORSに対応していないため、現在・未来の行だけをUTF-8 CSVとして保存しています。
+
+```bash
+node scripts/update-regional-event-data.mjs
+```
+
+`.github/workflows/update-event-data.yml` が毎日自動更新し、取得件数が異常に少ない場合は既存ファイルを上書きしません。
 
 ## 技術要素
 - Leaflet
@@ -87,6 +108,12 @@ Service Workerにより、次回以降の読み込みが速くなります。
 │     ├─ csv.js
 │     ├─ utils.js
 │     └─ event-csv-worker.js
+├─ data/
+│  ├─ osaka_events.csv
+│  ├─ tottori_events.csv
+│  └─ okazaki_events.csv
+└─ scripts/
+   └─ update-regional-event-data.mjs
 ```
 
 ## トラブルシューティング
@@ -100,6 +127,8 @@ Service Workerにより、次回以降の読み込みが速くなります。
 
 ## ライセンス
 - 浜松市オープンデータ「イベント」: CC BY 2.1 日本
+- 大阪府イベント一覧・岡崎市イベント一覧: CC BY 4.0
+- とっとりイベントナビ: 同サイトのオープンデータ利用条件
 - ウェブ参照情報: CC BYの対象外。各参照元の権利・利用条件が適用されます
 - 地図: OpenStreetMap contributors (ODbL)
 - Leaflet: MIT

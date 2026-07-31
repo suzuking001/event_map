@@ -50,9 +50,19 @@
   const floatingVisibleCount = document.getElementById("floating-visible-count");
   const shareMapButton = document.getElementById("share-map");
   const shareToast = document.getElementById("share-toast");
+  const shareSheet = document.getElementById("share-sheet");
+  const shareSheetClose = document.getElementById("share-sheet-close");
+  const shareSheetDescription = document.getElementById("share-sheet-description");
+  const shareToX = document.getElementById("share-to-x");
+  const shareToFacebook = document.getElementById("share-to-facebook");
+  const shareToInstagram = document.getElementById("share-to-instagram");
+  const shareCopyLink = document.getElementById("share-copy-link");
+  const shareNative = document.getElementById("share-native");
 
   const SHARE_PARAM_KEYS = ["from", "to", "q", "cat", "event"];
   let shareToastTimer = null;
+  let activeSharePayload = null;
+  let shareReturnFocus = null;
 
   const replaceLocationUrl = update => {
     if (location.protocol === "file:") return;
@@ -97,24 +107,341 @@
     if (!copied) throw new Error("Copy command failed");
   };
 
-  const shareOrCopy = async payload => {
-    if (navigator.share) {
-      try {
-        await navigator.share(payload);
-        showShareToast("シェアしました！");
-        return;
-      } catch (error) {
-        if (error && error.name === "AbortError") return;
+  const loadCanvasImage = src => new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = reject;
+    image.src = src;
+  });
+
+  const roundedRectPath = (context, x, y, width, height, radius) => {
+    const r = Math.min(radius, width / 2, height / 2);
+    context.beginPath();
+    context.moveTo(x + r, y);
+    context.arcTo(x + width, y, x + width, y + height, r);
+    context.arcTo(x + width, y + height, x, y + height, r);
+    context.arcTo(x, y + height, x, y, r);
+    context.arcTo(x, y, x + width, y, r);
+    context.closePath();
+  };
+
+  const drawWrappedCanvasText = (
+    context,
+    text,
+    x,
+    y,
+    maxWidth,
+    lineHeight,
+    maxLines
+  ) => {
+    const characters = Array.from(String(text || ""));
+    const lines = [];
+    let line = "";
+    characters.forEach(character => {
+      const candidate = `${line}${character}`;
+      if (line && context.measureText(candidate).width > maxWidth) {
+        lines.push(line);
+        line = character;
+      } else {
+        line = candidate;
       }
+    });
+    if (line) lines.push(line);
+    const visibleLines = lines.slice(0, maxLines);
+    if (lines.length > maxLines && visibleLines.length > 0) {
+      let lastLine = visibleLines[visibleLines.length - 1];
+      while (lastLine && context.measureText(`${lastLine}…`).width > maxWidth) {
+        lastLine = lastLine.slice(0, -1);
+      }
+      visibleLines[visibleLines.length - 1] = `${lastLine}…`;
     }
+    visibleLines.forEach((value, index) => {
+      context.fillText(value, x, y + index * lineHeight);
+    });
+    return y + visibleLines.length * lineHeight;
+  };
+
+  const buildInstagramStoryBlob = async payload => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 1080;
+    canvas.height = 1920;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Canvas is not supported");
+
+    context.fillStyle = "#fff8e8";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = "#ffd33d";
+    context.beginPath();
+    context.arc(945, 55, 235, 0, Math.PI * 2);
+    context.fill();
+    context.fillStyle = "#20c7b5";
+    context.beginPath();
+    context.arc(90, 1840, 260, 0, Math.PI * 2);
+    context.fill();
+    context.fillStyle = "#39a8ff";
+    context.beginPath();
+    context.arc(1040, 1740, 290, 0, Math.PI * 2);
+    context.fill();
+
+    context.fillStyle = "#ff5a36";
+    context.font = "900 27px sans-serif";
+    context.letterSpacing = "2px";
+    context.fillText("WEEKEND EVENT MAP", 76, 104);
+    context.letterSpacing = "0px";
+
     try {
-      await copyShareUrl(payload.url);
+      const mascot = await loadCanvasImage("assets/icons/icon-512.png");
+      context.save();
+      context.translate(740, 105);
+      context.rotate(0.045);
+      context.drawImage(mascot, 0, 0, 270, 270);
+      context.restore();
+    } catch (error) {
+      console.warn("Instagram story mascot could not be loaded.", error);
+    }
+
+    context.fillStyle = "#18314f";
+    context.font = "900 61px sans-serif";
+    context.fillText("今日は何する？", 76, 245);
+
+    const visual = payload.visual || {};
+    const category = visual.category || "イベント";
+    roundedRectPath(context, 76, 360, Math.min(760, 110 + category.length * 38), 70, 35);
+    context.fillStyle = "#ffd33d";
+    context.fill();
+    context.lineWidth = 4;
+    context.strokeStyle = "#18314f";
+    context.stroke();
+    context.fillStyle = "#18314f";
+    context.font = "900 31px sans-serif";
+    context.fillText(`${visual.icon || "📍"} ${category}`, 106, 407);
+
+    context.save();
+    context.shadowColor = "rgba(24, 49, 79, 0.18)";
+    context.shadowOffsetY = 16;
+    context.shadowBlur = 0;
+    roundedRectPath(context, 62, 478, 956, 990, 48);
+    context.fillStyle = "#fffdf7";
+    context.fill();
+    context.lineWidth = 6;
+    context.strokeStyle = "#18314f";
+    context.stroke();
+    context.restore();
+
+    const title = visual.title || payload.title || "イベントを探そう";
+    const titleFontSize = title.length > 40 ? 49 : title.length > 24 ? 57 : 68;
+    context.fillStyle = "#18314f";
+    context.font = `900 ${titleFontSize}px sans-serif`;
+    let contentY = drawWrappedCanvasText(
+      context,
+      title,
+      112,
+      590,
+      850,
+      titleFontSize * 1.35,
+      6
+    );
+    contentY += 38;
+
+    const infoRows = [
+      ["開催日", visual.date || "イベント情報を地図でチェック"],
+      ["会場", visual.place || "開催地を地図でチェック"],
+    ];
+    infoRows.forEach(([label, value]) => {
+      roundedRectPath(context, 112, contentY, 856, 142, 28);
+      context.fillStyle = "#fff8e8";
+      context.fill();
+      context.fillStyle = "#66798b";
+      context.font = "800 24px sans-serif";
+      context.fillText(label, 146, contentY + 43);
+      context.fillStyle = "#18314f";
+      context.font = "900 35px sans-serif";
+      drawWrappedCanvasText(context, value, 146, contentY + 93, 785, 44, 2);
+      contentY += 164;
+    });
+
+    roundedRectPath(context, 62, 1540, 956, 252, 48);
+    context.fillStyle = "#ff5a36";
+    context.fill();
+    context.lineWidth = 6;
+    context.strokeStyle = "#18314f";
+    context.stroke();
+    context.fillStyle = "#fff";
+    context.font = "900 43px sans-serif";
+    context.fillText("イベントマップ", 112, 1630);
+    context.font = "800 29px sans-serif";
+    context.fillText("リンクはコピー済み。ストーリーズで", 112, 1692);
+    context.fillText("リンクスタンプに貼り付けてね！", 112, 1737);
+
+    let displayUrl = "suzuking001.github.io/event_map/";
+    try {
+      const url = new URL(payload.url);
+      displayUrl = `${url.host}${url.pathname}`;
+    } catch (error) {
+      displayUrl = payload.url;
+    }
+    context.fillStyle = "#18314f";
+    context.font = "800 22px sans-serif";
+    context.fillText(displayUrl.slice(0, 64), 292, 1865);
+    context.font = "900 32px sans-serif";
+    context.fillText("📍", 245, 1867);
+
+    return new Promise((resolve, reject) => {
+      canvas.toBlob(blob => {
+        if (blob) resolve(blob);
+        else reject(new Error("Instagram story image could not be created"));
+      }, "image/png");
+    });
+  };
+
+  const downloadBlob = (blob, filename) => {
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  const setShareSheetOpen = (isOpen, payload = null, trigger = null) => {
+    if (!shareSheet) return;
+    const sideMenu = document.getElementById("side-menu");
+    if (isOpen) {
+      activeSharePayload = payload;
+      shareReturnFocus = trigger;
+      if (shareSheetDescription) {
+        shareSheetDescription.textContent = payload ? payload.title : "";
+      }
+      if (shareNative) shareNative.hidden = typeof navigator.share !== "function";
+      if (sideMenu) sideMenu.inert = true;
+      if (detailsModal) detailsModal.inert = true;
+      shareSheet.inert = false;
+      shareSheet.setAttribute("aria-hidden", "false");
+      shareSheet.classList.add("open");
+      if (shareToX) shareToX.focus();
+      return;
+    }
+    shareSheet.classList.remove("open");
+    shareSheet.setAttribute("aria-hidden", "true");
+    shareSheet.inert = true;
+    if (sideMenu) sideMenu.inert = !sideMenu.classList.contains("open");
+    if (detailsModal) detailsModal.inert = !detailsModal.classList.contains("open");
+    const focusTarget = shareReturnFocus;
+    activeSharePayload = null;
+    shareReturnFocus = null;
+    if (focusTarget && document.contains(focusTarget)) focusTarget.focus();
+  };
+
+  const copyActiveShareUrl = async () => {
+    if (!activeSharePayload) return;
+    try {
+      await copyShareUrl(activeSharePayload.url);
+      setShareSheetOpen(false);
       showShareToast("リンクをコピーしました！");
     } catch (error) {
       console.warn("Share URL copy failed.", error);
       showShareToast("コピーできませんでした。URL欄から共有してください。");
     }
   };
+
+  if (shareToX) {
+    shareToX.addEventListener("click", () => {
+      if (!activeSharePayload) return;
+      const postText = `${activeSharePayload.text}\n${activeSharePayload.url}`;
+      window.open(
+        `https://x.com/intent/post?text=${encodeURIComponent(postText)}`,
+        "_blank",
+        "noopener,noreferrer,width=680,height=640"
+      );
+      setShareSheetOpen(false);
+    });
+  }
+  if (shareToFacebook) {
+    shareToFacebook.addEventListener("click", () => {
+      if (!activeSharePayload) return;
+      window.open(
+        `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(activeSharePayload.url)}`,
+        "_blank",
+        "noopener,noreferrer,width=680,height=720"
+      );
+      setShareSheetOpen(false);
+    });
+  }
+  if (shareToInstagram) {
+    shareToInstagram.addEventListener("click", async () => {
+      if (!activeSharePayload || shareToInstagram.disabled) return;
+      const payload = activeSharePayload;
+      const label = shareToInstagram.querySelector("strong");
+      const previousLabel = label ? label.textContent : "";
+      shareToInstagram.disabled = true;
+      shareToInstagram.setAttribute("aria-busy", "true");
+      if (label) label.textContent = "画像を作成しています…";
+      let linkCopied = false;
+      try {
+        try {
+          await copyShareUrl(payload.url);
+          linkCopied = true;
+        } catch (error) {
+          console.warn("Instagram share URL copy failed.", error);
+        }
+        const blob = await buildInstagramStoryBlob(payload);
+        const rawId = payload.visual && payload.visual.id
+          ? String(payload.visual.id)
+          : "map";
+        const safeId = rawId.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 36) || "map";
+        downloadBlob(blob, `event-map-${safeId}-story.png`);
+        setShareSheetOpen(false);
+        showShareToast(
+          linkCopied
+            ? "ストーリーズ画像を保存し、リンクをコピーしました！"
+            : "ストーリーズ画像を保存しました。リンクは別途コピーしてください。"
+        );
+      } catch (error) {
+        console.error("Instagram story image generation failed.", error);
+        showShareToast("Instagram用画像を作成できませんでした。");
+      } finally {
+        shareToInstagram.disabled = false;
+        shareToInstagram.removeAttribute("aria-busy");
+        if (label) label.textContent = previousLabel;
+      }
+    });
+  }
+  if (shareCopyLink) {
+    shareCopyLink.addEventListener("click", () => {
+      void copyActiveShareUrl();
+    });
+  }
+  if (shareNative) {
+    shareNative.addEventListener("click", async () => {
+      if (!activeSharePayload || !navigator.share) return;
+      try {
+        await navigator.share(activeSharePayload);
+        setShareSheetOpen(false);
+      } catch (error) {
+        if (!error || error.name !== "AbortError") {
+          console.warn("Native share failed.", error);
+          showShareToast("端末の共有メニューを開けませんでした。");
+        }
+      }
+    });
+  }
+  if (shareSheetClose) {
+    shareSheetClose.addEventListener("click", () => setShareSheetOpen(false));
+  }
+  if (shareSheet) {
+    shareSheet.addEventListener("click", event => {
+      if (event.target === shareSheet) setShareSheetOpen(false);
+    });
+    document.addEventListener("keydown", event => {
+      if (event.key === "Escape" && shareSheet.classList.contains("open")) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        setShareSheetOpen(false);
+      }
+    });
+  }
 
   const CATEGORY_PALETTE = [
     "#ff5a36",
@@ -271,9 +598,19 @@
     const raw = value ? String(value).trim() : "";
     if (!raw) return ["未分類"];
     // "・" is part of official category names such as "講座・教室".
-    const parts = raw.split(/[、/／]/).map(item => item.trim()).filter(Boolean);
+    const parts = raw.split(/[;；、/／]/).map(item => item.trim()).filter(Boolean);
     return parts.length ? parts : [raw];
   };
+
+  const SOURCE_DETAIL_FIELDS = new Set([
+    "_sourceId",
+    "_sourceType",
+    "_sourceName",
+    "_sourceAreaName",
+    "_sourceUrl",
+    "_sourceLicenseName",
+    "_sourceLicenseUrl",
+  ]);
 
   const PRIMARY_DETAIL_FIELDS = new Set([
     "NO",
@@ -284,10 +621,12 @@
     "終了時間",
     "説明",
     "場所名称",
+    "地方公共団体名",
     "カテゴリー",
     "緯度",
     "経度",
     "URL",
+    ...SOURCE_DETAIL_FIELDS,
   ]);
 
   const buildSearchText = fields => {
@@ -298,8 +637,16 @@
       fields["場所名称"],
       fields["説明"],
       fields["住所"],
+      fields["所在地_連結表記"],
+      fields["所在地_都道府県"],
+      fields["所在地_市区町村"],
+      fields["地方公共団体名"],
       fields["主催者"],
       fields["カテゴリー"],
+      fields["タグ"],
+      fields["イベント種類"],
+      fields._sourceName,
+      fields._sourceAreaName,
       fields["区"],
       fields["備考"],
     ]
@@ -332,13 +679,19 @@
     const urlButton = normalizedUrl
       ? `<a class="details-link-button" href="${escapeValue(normalizedUrl)}" target="_blank" rel="noopener">${faviconHtml}<span>参照元ページを開く</span></a>`
       : `<button class="details-link-button" type="button" disabled>参照元ページなし</button>`;
-    const searchQuery = `浜松市 ${event.name || "イベント"}`;
+    const eventArea = event.fields["地方公共団体名"] ||
+      event.fields["所在地_市区町村"] ||
+      event.fields["所在地_都道府県"] ||
+      event.fields._sourceName ||
+      "浜松市";
+    const searchQuery = `${eventArea} ${event.name || "イベント"}`;
     const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`;
     const searchButton = `<a class="details-link-button details-link-button-secondary" href="${searchUrl}" target="_blank" rel="noopener">Googleで検索</a>`;
     const dateRange = formatDateRange(event.startDate, event.endDate);
     const timeRange = formatTimeRange(event.startTime, event.endTime);
     const description = String(event.fields["説明"] || "").trim();
-    const isWebReferenced = /^WEB/i.test(String(event.fields.NO || "").trim())
+    const isWebReferenced = event.fields._sourceType === "web" ||
+      /^WEB/i.test(String(event.fields.NO || "").trim())
       || /^Web収集:/i.test(String(event.fields["備考"] || "").trim());
     let sourceHost = "";
     if (isWebReferenced && normalizedUrl) {
@@ -348,17 +701,29 @@
         sourceHost = "";
       }
     }
+    const sourceName = event.fields._sourceName || "浜松市オープンデータ「イベント」";
+    const sourceUrl = normalizeUrl(event.fields._sourceUrl || "");
+    const sourceLicenseName = event.fields._sourceLicenseName || "";
+    const sourceLicenseUrl = normalizeUrl(event.fields._sourceLicenseUrl || "");
+    const sourceNameHtml = sourceUrl
+      ? `<a href="${escapeValue(sourceUrl)}" target="_blank" rel="noopener">${escapeValue(sourceName)}</a>`
+      : escapeValue(sourceName);
+    const sourceLicenseHtml = sourceLicenseName
+      ? sourceLicenseUrl
+        ? `<a href="${escapeValue(sourceLicenseUrl)}" target="_blank" rel="noopener">${escapeValue(sourceLicenseName)}</a>`
+        : escapeValue(sourceLicenseName)
+      : "各提供元の利用条件をご確認ください";
     const sourceNoticeHtml = isWebReferenced
       ? `
         <div class="details-source-notice details-source-notice-web">
           <strong>情報源：ウェブ参照情報${sourceHost ? `（${escapeValue(sourceHost)}）` : ""}</strong>
-          <span>このイベントは浜松市オープンデータではなく、CC BYの対象外です。参照元の権利・利用条件をご確認ください。</span>
+          <span>このイベントは自治体等のオープンデータではなく、各オープンデータライセンスの対象外です。参照元の権利・利用条件をご確認ください。</span>
         </div>
       `
       : `
         <div class="details-source-notice details-source-notice-open-data">
-          <strong>情報源：浜松市オープンデータ「イベント」</strong>
-          <span><a href="https://opendata.pref.shizuoka.jp/dataset/12874.html" target="_blank" rel="noopener">クリエイティブ・コモンズ・ライセンス 表示2.1 日本</a></span>
+          <strong>情報源：${sourceNameHtml}</strong>
+          <span>${sourceLicenseHtml}（本アプリ向けに抽出・整形）</span>
         </div>
       `;
 
@@ -366,6 +731,7 @@
       .map(category => `<span class="event-category-chip">${escapeValue(getCategoryIcon(category))} ${escapeValue(category)}</span>`)
       .join("");
     const metaItems = [
+      ["地域", eventArea],
       ["開催日", dateRange],
       ["時間", timeRange],
       ["会場", event.place],
@@ -646,10 +1012,38 @@
     return { ...parseCSV(csvText), fingerprint: hashText(csvText) };
   };
 
+  const normalizeSourceFields = (fields, source) => {
+    const normalized = { ...fields };
+    normalized.NO = normalized.NO || normalized.ID || "";
+    normalized["カテゴリー"] = normalized["カテゴリー"] ||
+      normalized["キーワード"] ||
+      normalized["タグ"] ||
+      normalized["イベント種類"] ||
+      source.defaultCategory ||
+      "未分類";
+    normalized.URL = normalized.URL ||
+      normalized["コンテンツURL"] ||
+      normalized["申込URL"] ||
+      "";
+    normalized["住所"] = normalized["住所"] || normalized["所在地_連結表記"] || "";
+    normalized["説明"] = normalized["説明"] || normalized["概要"] || "";
+    normalized["地方公共団体名"] = normalized["地方公共団体名"] || source.areaName || "";
+    normalized._sourceId = source.id || "";
+    normalized._sourceType = source.sourceType || "open-data";
+    normalized._sourceName = source.sourceName || "";
+    normalized._sourceAreaName = source.areaName || "";
+    normalized._sourceUrl = source.sourceUrl || "";
+    normalized._sourceLicenseName = source.licenseName || "";
+    normalized._sourceLicenseUrl = source.licenseUrl || "";
+    return normalized;
+  };
+
   const getEventKey = fields => {
-    const id = String(fields.NO || "").trim();
-    if (id) return `id:${id}`;
+    const sourceId = String(fields._sourceId || "unknown").trim();
+    const id = String(fields.NO || fields.ID || "").trim();
+    if (id) return `${sourceId}:id:${id}`;
     return [
+      sourceId,
       fields["イベント名"],
       fields["開始日"],
       fields["終了日"],
@@ -669,23 +1063,34 @@
         mergedHeaders.push(header);
       });
     });
+    SOURCE_DETAIL_FIELDS.forEach(header => {
+      if (headerSet.has(header)) return;
+      headerSet.add(header);
+      mergedHeaders.push(header);
+    });
+    ["NO", "カテゴリー", "URL", "住所", "説明"].forEach(header => {
+      if (headerSet.has(header)) return;
+      headerSet.add(header);
+      mergedHeaders.push(header);
+    });
 
     const eventsByKey = new Map();
-    payloads.forEach(({ payload }) => {
+    payloads.forEach(({ source, payload }) => {
       payload.rows.forEach(row => {
         const fields = {};
         payload.headers.forEach((header, index) => {
           fields[header] = row[index] == null ? "" : row[index];
         });
-        const key = getEventKey(fields);
+        const normalizedFields = normalizeSourceFields(fields, source);
+        const key = getEventKey(normalizedFields);
         if (!eventsByKey.has(key)) {
-          eventsByKey.set(key, fields);
+          eventsByKey.set(key, normalizedFields);
           return;
         }
         const existing = eventsByKey.get(key);
         mergedHeaders.forEach(header => {
-          if (!existing[header] && fields[header]) {
-            existing[header] = fields[header];
+          if (!existing[header] && normalizedFields[header]) {
+            existing[header] = normalizedFields[header];
           }
         });
       });
@@ -1078,7 +1483,7 @@
       });
     };
 
-    const shareEvent = eventId => {
+    const shareEvent = (eventId, trigger) => {
       const selectedEvent = events.find(event => event.id === eventId);
       if (!selectedEvent) {
         showShareToast("イベント情報を確認できませんでした。");
@@ -1088,23 +1493,43 @@
         formatDateRange(selectedEvent.startDate, selectedEvent.endDate),
         selectedEvent.place,
       ].filter(Boolean).join("・");
-      void shareOrCopy({
-        title: `${selectedEvent.name}｜浜松市 イベントマップ`,
+      const selectedArea = selectedEvent.fields["地方公共団体名"] ||
+        selectedEvent.fields["所在地_市区町村"] ||
+        selectedEvent.fields["所在地_都道府県"] ||
+        "開催地域";
+      setShareSheetOpen(true, {
+        title: `${selectedEvent.name}｜イベントマップ`,
         text: `${selectedEvent.categoryIcon} ${selectedEvent.name}${details ? `\n${details}` : ""}`,
         url: buildEventShareUrl(selectedEvent.id),
-      });
+        visual: {
+          id: selectedEvent.id,
+          title: selectedEvent.name,
+          date: formatDateRange(selectedEvent.startDate, selectedEvent.endDate),
+          place: selectedEvent.place || selectedArea,
+          category: selectedEvent.primaryCategory,
+          icon: selectedEvent.categoryIcon,
+        },
+      }, trigger);
     };
 
     if (shareMapButton) {
       shareMapButton.addEventListener("click", () => {
         const range = dateStart && dateEnd && (dateStart.value || dateEnd.value)
-          ? `${formatDateRange(dateStart.value, dateEnd.value)}の浜松イベント`
-          : "浜松のイベント";
-        void shareOrCopy({
-          title: "浜松、今日は何する？｜浜松市 イベントマップ",
+          ? `${formatDateRange(dateStart.value, dateEnd.value)}のイベント`
+          : "イベント";
+        setShareSheetOpen(true, {
+          title: "今日は何する？｜イベントマップ",
           text: `${range}を地図でチェック！`,
           url: buildFilterShareUrl(),
-        });
+          visual: {
+            id: "map",
+            title: "今日は何する？",
+            date: range.replace(/のイベント$/, ""),
+            place: `${visibleCount ? visibleCount.textContent : "0"}件のイベントを地図でチェック`,
+            category: "イベント",
+            icon: "🎪",
+          },
+        }, shareMapButton);
       });
     }
 
@@ -1125,7 +1550,7 @@
         const endDate = fields["終了日"] || "";
         const startTime = fields["開始時間"] || "";
         const endTime = fields["終了時間"] || "";
-        const place = fields["場所名称"] || "";
+        const place = fields["場所名称"] || fields["集合（受付）場所"] || "";
         const lat = parseFloat(fields["緯度"]);
         const lon = parseFloat(fields["経度"]);
 
@@ -1148,7 +1573,11 @@
         });
 
         events.push({
-          id: fields["NO"] || `event-${rowIndex}`,
+          id: fields["NO"]
+            ? ["hamamatsu-open-data", "bundled-event-data"].includes(fields._sourceId)
+              ? fields["NO"]
+              : `${fields._sourceId || "event"}:${fields["NO"]}`
+            : `${fields._sourceId || "event"}:event-${rowIndex}`,
           name,
           startDate,
           endDate,
@@ -1208,7 +1637,7 @@
       detailsBody.addEventListener("click", event => {
         const shareButton = event.target.closest("[data-share-event]");
         if (shareButton) {
-          shareEvent(shareButton.dataset.shareEvent || "");
+          shareEvent(shareButton.dataset.shareEvent || "", shareButton);
           return;
         }
 
@@ -1839,7 +2268,24 @@
       return true;
     };
 
-    const applyFilters = () => {
+    const focusVisibleEvents = visibleEvents => {
+      if (visibleEvents.length === 0) return;
+      if (visibleEvents.length === 1) {
+        map.setView([visibleEvents[0].lat, visibleEvents[0].lon], 14);
+        return;
+      }
+      const bounds = L.latLngBounds(
+        visibleEvents.map(event => [event.lat, event.lon])
+      );
+      if (bounds.isValid()) {
+        map.fitBounds(bounds, {
+          padding: [40, 40],
+          maxZoom: 13,
+        });
+      }
+    };
+
+    const applyFilters = (fitMap = false) => {
       const selectedCategories = getSelectedCategories();
       let startFilter = parseDateValue(dateStart ? dateStart.value : "");
       let endFilter = parseDateValue(dateEnd ? dateEnd.value : "");
@@ -1880,6 +2326,7 @@
         if (shouldShow) visibleEvents.push(event);
       });
       rebuildLocationMarkers(visibleEvents);
+      if (fitMap) focusVisibleEvents(visibleEvents);
       const visible = visibleEvents.length;
 
       if (visibleCount) {
@@ -1984,7 +2431,7 @@
       }
       if (totalCount) totalCount.textContent = `${events.length}`;
       if (filterSummary) filterSummary.classList.remove("hidden");
-      applyFilters();
+      applyFilters(Boolean(searchInput && searchInput.value.trim()));
       if (linkedEvent) {
         window.requestAnimationFrame(() => {
           map.setView([linkedEvent.lat, linkedEvent.lon], 15, { animate: false });
@@ -2135,10 +2582,10 @@
       if (datePicker && !datePicker.hidden) positionDatePicker();
     });
     if (categoryFilters) {
-      categoryFilters.addEventListener("change", applyFilters);
+      categoryFilters.addEventListener("change", () => applyFilters());
     }
     if (searchInput) {
-      const debouncedApply = debounce(applyFilters, 250);
+      const debouncedApply = debounce(() => applyFilters(true), 250);
       searchInput.addEventListener("input", debouncedApply);
     }
     if (categoryAll) {

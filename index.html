@@ -4,13 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#ff5a36">
-  <meta name="description" content="浜松のイベントを日付・カテゴリ・地図から発見。家族や友人との週末のおでかけを、楽しく探してシェアできるイベントマップです。">
+  <meta name="description" content="浜松を中心に、大阪・鳥取・岡崎のイベントも日付・カテゴリ・地図から探せるイベントマップです。">
   <meta property="og:type" content="website">
   <meta property="og:locale" content="ja_JP">
   <meta property="og:site_name" content="浜松市 イベントマップ">
   <meta property="og:title" content="浜松、今日は何する？｜浜松市 イベントマップ">
   <meta property="og:description" content="行きたい日を選んで、街のイベントを発見。浜松の週末のおでかけを地図から楽しく探せます。">
-  <meta property="og:url" content="https://suzuking001.github.io/event_map/">
   <meta property="og:image" content="https://suzuking001.github.io/event_map/assets/og-weekend-festival.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
@@ -19,7 +18,6 @@
   <meta name="twitter:title" content="浜松、今日は何する？｜浜松市 イベントマップ">
   <meta name="twitter:description" content="行きたい日を選んで、街のイベントを発見。">
   <meta name="twitter:image" content="https://suzuking001.github.io/event_map/assets/og-weekend-festival.png">
-  <link rel="canonical" href="https://suzuking001.github.io/event_map/">
   <meta name="application-name" content="浜松市 イベントマップ">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -45,7 +43,7 @@
     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
     crossorigin=""
   />
-  <link rel="stylesheet" href="assets/styles.css?v=18" />
+  <link rel="stylesheet" href="assets/styles.css?v=20" />
 </head>
 <body>
   <button id="menu-toggle" class="menu-toggle" aria-label="メニューを開く" aria-expanded="true" aria-controls="side-menu">
@@ -64,7 +62,7 @@
       </div>
       <button id="menu-close" class="menu-close" type="button" aria-label="メニューを閉じる">×</button>
     </div>
-    <p class="menu-intro">行きたい日を選んで、街のイベントを発見。</p>
+    <p class="menu-intro">浜松を中心に、全国のオープンデータからイベントを発見。</p>
     <section class="date-filter" aria-labelledby="date-filter-title">
       <div class="date-filter-heading">
         <h2 id="date-filter-title">いつ行きますか？</h2>
@@ -94,7 +92,7 @@
       <div id="date-range-hint" class="date-range-hint"></div>
     </section>
     <label class="menu-label" for="search-input">キーワード検索</label>
-    <input id="search-input" class="menu-input" type="text" placeholder="例: 音楽, 公園, ワークショップ">
+    <input id="search-input" class="menu-input" type="text" placeholder="例: 大阪, 鳥取, 岡崎, 音楽">
     <div class="menu-section">
       <div class="menu-subtitle">カテゴリ <span>（地図表示件数）</span></div>
       <div id="category-filters"></div>
@@ -150,8 +148,8 @@
     <div class="menu-footer">
       <div class="menu-license">
         <div>Leaflet (MIT) | &copy; OpenStreetMap contributors (ODbL)</div>
-        <div>イベント情報: 浜松市オープンデータ＋各参照元ウェブページ</div>
-        <div>CC BY 2.1 日本: <a href="https://opendata.pref.shizuoka.jp/dataset/12874.html" target="_blank" rel="noopener">浜松市オープンデータ「イベント」</a>のみに適用</div>
+        <div>イベント情報: 浜松市・大阪府・鳥取県・岡崎市のオープンデータ＋各参照元ウェブページ</div>
+        <div>各オープンデータには提供元が指定するライセンス・利用条件が適用されます。</div>
         <div>ウェブ参照情報はCC BYの対象外です。各イベント詳細の参照元URLと、参照元の権利・利用条件をご確認ください。</div>
       </div>
       <div class="menu-actions">
@@ -188,6 +186,40 @@
     <span><strong id="floating-visible-count">0</strong>件 見つかりました</span>
   </div>
   <div id="share-toast" class="share-toast" role="status" aria-live="polite" aria-hidden="true"></div>
+  <div id="share-sheet" class="share-sheet" role="dialog" aria-modal="true" aria-labelledby="share-sheet-title" aria-hidden="true" inert>
+    <div class="share-sheet-card">
+      <div class="share-sheet-header">
+        <div>
+          <span class="share-sheet-eyebrow">SHARE</span>
+          <h2 id="share-sheet-title">シェア方法を選ぶ</h2>
+        </div>
+        <button id="share-sheet-close" class="share-sheet-close" type="button" aria-label="シェア画面を閉じる">×</button>
+      </div>
+      <p id="share-sheet-description" class="share-sheet-description"></p>
+      <div class="share-sheet-actions">
+        <button id="share-to-x" class="share-choice share-choice-x" type="button">
+          <span class="share-choice-icon" aria-hidden="true">𝕏</span>
+          <span><strong>Xでポスト</strong><small>文章とリンクを入れてXを開く</small></span>
+        </button>
+        <button id="share-to-facebook" class="share-choice share-choice-facebook" type="button">
+          <span class="share-choice-icon" aria-hidden="true">f</span>
+          <span><strong>Facebookでシェア</strong><small>イベントのリンクをFacebookで共有</small></span>
+        </button>
+        <button id="share-to-instagram" class="share-choice share-choice-instagram" type="button">
+          <span class="share-choice-icon" aria-hidden="true">◎</span>
+          <span><strong>Instagram用画像を作る</strong><small>ストーリーズ画像を保存してリンクをコピー</small></span>
+        </button>
+        <button id="share-copy-link" class="share-choice share-choice-copy" type="button">
+          <span class="share-choice-icon" aria-hidden="true">🔗</span>
+          <span><strong>リンクをコピー</strong><small>URLをクリップボードに保存</small></span>
+        </button>
+        <button id="share-native" class="share-choice share-choice-native" type="button">
+          <span class="share-choice-icon" aria-hidden="true">↗</span>
+          <span><strong>その他のアプリ</strong><small>端末の共有メニューを開く</small></span>
+        </button>
+      </div>
+    </div>
+  </div>
   <div id="details-modal" class="details-modal" aria-hidden="true" role="dialog" aria-modal="true" aria-label="イベント詳細" inert>
     <div class="details-container" role="document">
       <div class="details-header">
@@ -212,7 +244,7 @@
         <span class="about-badge">個人制作の非公式アプリ</span>
       </div>
       <div id="about-body" class="about-body">
-        <p class="about-lead">浜松市オープンデータと、ウェブ上で公開されているイベント情報を、地図上で探しやすく整理したWebアプリです。</p>
+        <p class="about-lead">浜松市・大阪府・鳥取県・岡崎市のオープンデータと、ウェブ上で公開されているイベント情報を、地図上で探しやすく整理したWebアプリです。</p>
         <div class="about-feature-grid" aria-label="このアプリでできること">
           <div class="about-feature-card">
             <span class="about-feature-number">01</span>
@@ -238,8 +270,9 @@
           <summary>データ利用・免責事項</summary>
           <div class="about-more-content">
             <p><strong>浜松市オープンデータ：</strong>データ提供は浜松市、ライセンスはクリエイティブ・コモンズ・ライセンス 表示2.1 日本です。</p>
-            <p><strong>ウェブ参照情報：</strong>イベント主催者・会場・施設等のウェブページや情報掲載ページを参照して整理した情報です。浜松市オープンデータのCC BYライセンスは適用されません。各イベント詳細に参照元URLを表示し、参照元の権利・利用条件に従います。</p>
-            <p>本アプリは個人が作成した非公式アプリであり、浜松市が提供・運営するものではありません。表示内容の正確性を保証するものではないため、最新情報は公式サイトでご確認ください。</p>
+            <p><strong>地域オープンデータ：</strong>大阪府および岡崎市のイベント一覧はCC BY 4.0、とっとりイベントナビは同サイトが示すオープンデータ利用条件に従って利用します。</p>
+            <p><strong>ウェブ参照情報：</strong>イベント主催者・会場・施設等のウェブページや情報掲載ページを参照して整理した情報です。各オープンデータのライセンスは適用されません。各イベント詳細に参照元URLを表示し、参照元の権利・利用条件に従います。</p>
+            <p>本アプリは個人が作成した非公式アプリであり、各自治体やデータ提供元が提供・運営するものではありません。表示内容の正確性を保証するものではないため、最新情報は公式サイトでご確認ください。</p>
             <p>位置情報は端末内で処理され、保存されません。</p>
             <p>訪問人数は同じ端末からの同日アクセスを1人とする概算値です。重複防止のためブラウザ内に集計済みの日付だけを保存し、匿名の件数を外部集計サービスに送信します。</p>
           </div>
@@ -295,10 +328,11 @@
             <p>本サービスでは、性質と利用条件が異なる次の情報源を使用します。</p>
             <ul>
               <li><strong>浜松市オープンデータ：</strong>浜松市が公開する「イベント」データ</li>
+              <li><strong>地域オープンデータ：</strong>大阪府イベント一覧、とっとりイベントナビ、岡崎市イベント一覧</li>
               <li><strong>ウェブ参照情報：</strong>イベント主催者、会場、施設等のウェブページや情報掲載ページを参照し、客観的な事実情報を整理したデータ</li>
               <li>主催者または権利者から掲載の申込みまたは許諾を受けた情報</li>
             </ul>
-            <p>クリエイティブ・コモンズ・ライセンス 表示2.1 日本（CC BY 2.1 日本）が適用されるのは、浜松市オープンデータ「イベント」の部分のみです。ウェブ参照情報を浜松市が提供したデータとして扱うものではなく、浜松市オープンデータのCC BYライセンスも適用されません。</p>
+            <p>浜松市データにはCC BY 2.1 日本、大阪府および岡崎市データにはCC BY 4.0、とっとりイベントナビには同サイトが示す利用条件がそれぞれ適用されます。ウェブ参照情報には、これらのオープンデータライセンスは適用されません。</p>
             <p>ウェブ参照情報については、各イベントに参照元URLを表示し、参照元の権利および利用条件に従います。</p>
             <p>第三者が運営するまとめサイト、個人ブログその他の非公式な情報は、原則として自動収集の対象としません。</p>
           </section>
@@ -360,6 +394,8 @@
           <section>
             <h3>7．オープンデータ</h3>
             <p>浜松市オープンデータ「イベント」は、クリエイティブ・コモンズ・ライセンス 表示2.1 日本の条件に従って利用します。</p>
+            <p>大阪府イベント一覧および岡崎市イベント一覧は、クリエイティブ・コモンズ 表示4.0 国際の条件に従って利用します。</p>
+            <p>とっとりイベントナビのデータは、同サイトが示すオープンデータ利用条件に従って利用します。</p>
             <p>出典表示、ライセンス表示および加工した旨の表示が必要な場合は、本サービス上に表示します。</p>
             <p>オープンデータに含まれる画像、文章その他の第三者著作物について、別の利用条件が示されている場合は、その条件に従います。</p>
             <p>このライセンス表示はウェブ参照情報には及びません。ウェブ参照情報には、それぞれの参照元の権利および利用条件が適用されます。</p>
@@ -416,11 +452,11 @@
     crossorigin="">
   </script>
 
-  <script charset="UTF-8" src="assets/js/config.js?v=13"></script>
+  <script charset="UTF-8" src="assets/js/config.js?v=14"></script>
   <script charset="UTF-8" src="assets/js/csv.js"></script>
   <script charset="UTF-8" src="assets/js/utils.js"></script>
   <script charset="UTF-8" src="assets/js/visitor-counter.js?v=2"></script>
-  <script charset="UTF-8" src="assets/app.js?v=29"></script>
+  <script charset="UTF-8" src="assets/app.js?v=32"></script>
   <script>
     if ("serviceWorker" in navigator && location.protocol !== "file:") {
       window.addEventListener("load", () => {
