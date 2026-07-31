@@ -694,6 +694,10 @@
     overviewMapPane.style.zIndex = "150";
     overviewMapPane.style.pointerEvents = "none";
 
+    map.createPane("eventMarkerPane");
+    const eventMarkerPane = map.getPane("eventMarkerPane");
+    eventMarkerPane.style.zIndex = "675";
+
     L.imageOverlay(OVERVIEW_MAP.url, OVERVIEW_MAP.bounds, {
       pane: "overviewMapPane",
       interactive: false,
@@ -953,6 +957,7 @@
         });
         const marker = L.marker([group.lat, group.lon], {
           icon,
+          pane: "eventMarkerPane",
           title: `${firstEvent.primaryCategory}: ${firstEvent.name}`,
           alt: `${firstEvent.primaryCategory}のイベント: ${firstEvent.name}`,
           keyboard: true,
@@ -995,6 +1000,7 @@
       });
       const marker = L.marker([group.lat, group.lon], {
         icon,
+        pane: "eventMarkerPane",
         title: `${place}: ${categoryNameList.join("・")}のイベント${groupEvents.length}件。押すと一覧を表示します。`,
         alt: `${place}に${categoryNameList.join("、")}のイベント${groupEvents.length}件`,
         keyboard: true,
