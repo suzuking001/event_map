@@ -1534,6 +1534,10 @@
     const eventMarkerPane = map.getPane("eventMarkerPane");
     eventMarkerPane.style.zIndex = "675";
 
+    map.createPane("eventHoverLabelPane");
+    const eventHoverLabelPane = map.getPane("eventHoverLabelPane");
+    eventHoverLabelPane.style.zIndex = "700";
+
     L.imageOverlay(OVERVIEW_MAP.url, OVERVIEW_MAP.bounds, {
       pane: "overviewMapPane",
       interactive: false,
@@ -1948,6 +1952,7 @@
             events: [],
             marker: null,
             labels: [],
+            isMarkerHovered: false,
           });
         }
         groupsByLocation.get(key).events.push(event);
@@ -1982,6 +1987,16 @@
         });
         marker.on("click", () => {
           openLocationEvents(groupEvents);
+        });
+        marker.on("mouseover", () => {
+          group.isMarkerHovered = true;
+          marker.setZIndexOffset(1000);
+          syncMarkerLabels();
+        });
+        marker.on("mouseout", () => {
+          group.isMarkerHovered = false;
+          marker.setZIndexOffset(0);
+          syncMarkerLabels();
         });
         return marker;
       }
@@ -2028,8 +2043,16 @@
       marker.on("click", () => {
         openLocationEvents(groupEvents);
       });
-      marker.on("mouseover", () => marker.setZIndexOffset(1000));
-      marker.on("mouseout", () => marker.setZIndexOffset(200));
+      marker.on("mouseover", () => {
+        group.isMarkerHovered = true;
+        marker.setZIndexOffset(1000);
+        syncMarkerLabels();
+      });
+      marker.on("mouseout", () => {
+        group.isMarkerHovered = false;
+        marker.setZIndexOffset(200);
+        syncMarkerLabels();
+      });
       return marker;
     };
 
@@ -2086,6 +2109,7 @@
         permanent: true,
         direction: "top",
         offset: getStackedLabelOffset(),
+        pane: "tooltipPane",
         className: `marker-label marker-label-event marker-label-stacked${labelItem.isSummary ? " marker-label-more" : ""}`,
         interactive: true,
       })
@@ -2140,7 +2164,8 @@
       const opacity = getLabelOpacity();
       markers.forEach(item => {
         const markerIsVisible = item.marker && map.hasLayer(item.marker);
-        if (!markerIsVisible || opacity <= 0) {
+        const effectiveOpacity = item.isMarkerHovered ? 1 : opacity;
+        if (!markerIsVisible || effectiveOpacity <= 0) {
           removeMarkerLabels(item);
           return;
         }
@@ -2148,12 +2173,21 @@
           const labelItems = getDisplayLabelItems(item);
           item.labels = labelItems.map(labelItem => createEventLabel(item, labelItem));
         }
+        const targetPane = item.isMarkerHovered
+          ? "eventHoverLabelPane"
+          : "tooltipPane";
         item.labels.forEach(label => {
+          if (label.options.pane !== targetPane) {
+            if (map.hasLayer(label)) map.removeLayer(label);
+            label.options.pane = targetPane;
+          }
           if (!map.hasLayer(label)) label.addTo(map);
           const element = label.getElement();
           if (!element) return;
-          element.style.opacity = String(opacity);
-          element.style.pointerEvents = opacity < 0.2 ? "none" : "auto";
+          element.style.opacity = String(effectiveOpacity);
+          element.style.pointerEvents = item.isMarkerHovered || opacity < 0.2
+            ? "none"
+            : "auto";
         });
         alignMarkerLabelStack(item);
       });
@@ -2171,6 +2205,7 @@
             item.marker.addTo(map);
           }
         } else if (item.marker && map.hasLayer(item.marker)) {
+          item.isMarkerHovered = false;
           removeMarkerLabels(item);
           map.removeLayer(item.marker);
         }
