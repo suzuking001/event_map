@@ -1,0 +1,152 @@
+{
+  "schema": "event-data outputs-manifest v1",
+  "generated_at": "2026-08-11T19:54:51+09:00",
+  "city_count": 12,
+  "total_event_count": 2845,
+  "cities": [
+    {
+      "region_id": "fukuroi",
+      "event_count": 5,
+      "events": {
+        "path": "outputs/fukuroi/events.csv",
+        "sha256": "244a37d5f639385c81299a2acf3faeb4fa98bc194a844556d96c58f84e7dead8"
+      },
+      "provenance": {
+        "path": "outputs/fukuroi/events.provenance.csv",
+        "sha256": "e7a84f269032ee2a12d28cb55d92e7c0249cdbc7a99c565b452b1645022c0e6b"
+      }
+    },
+    {
+      "region_id": "hamamatsu",
+      "event_count": 2783,
+      "events": {
+        "path": "outputs/hamamatsu/events.csv",
+        "sha256": "a6a732a8056b92112576ecfd25854c9c2828a6b8858106bde09cc56c017d3903"
+      },
+      "provenance": {
+        "path": "outputs/hamamatsu/events.provenance.csv",
+        "sha256": "ef6e08187fdcb2a030774f6298ed6e58ddc850e0152c3775fc8b9d8c9a7efef7"
+      }
+    },
+    {
+      "region_id": "iwata",
+      "event_count": 3,
+      "events": {
+        "path": "outputs/iwata/events.csv",
+        "sha256": "5fce4d434158e3a9dcdb686899fb9842476ed3e5e23f426714669049dcabe7c2"
+      },
+      "provenance": {
+        "path": "outputs/iwata/events.provenance.csv",
+        "sha256": "6b3da000eade2247eb04d102c021db8a7bb67e5e8e7226705990257a8e963628"
+      }
+    },
+    {
+      "region_id": "kakegawa",
+      "event_count": 25,
+      "events": {
+        "path": "outputs/kakegawa/events.csv",
+        "sha256": "29cdd7d4ad265ab9b6d412c6f53e96729e84defa37c5f4c478d4ab4aa2a6dcde"
+      },
+      "provenance": {
+        "path": "outputs/kakegawa/events.provenance.csv",
+        "sha256": "dac15b4d871762363c986b56b75a0cca9fd31ad085c62f29b470d630f32921a9"
+      }
+    },
+    {
+      "region_id": "kosai",
+      "event_count": 10,
+      "events": {
+        "path": "outputs/kosai/events.csv",
+        "sha256": "acd779e794c6812023d821a169f35c8b326541f10a89b35faa383cbf2030d6c1"
+      },
+      "provenance": {
+        "path": "outputs/kosai/events.provenance.csv",
+        "sha256": "ace484e851c5b79f0db61c865f3c24c015db229c0b2fe7d7102ce96faf596c64"
+      }
+    },
+    {
+      "region_id": "municipality-221007",
+      "event_count": 1,
+      "events": {
+        "path": "outputs/municipality-221007/events.csv",
+        "sha256": "6e7167863c1901124813baa697c3f92645cac46f1cca9942a478a561aaac9791"
+      },
+      "provenance": {
+        "path": "outputs/municipality-221007/events.provenance.csv",
+        "sha256": "d8c74c35eae97ef27f07c22c9d0460a494d81e25a19627aa325fe4cf0f196c64"
+      }
+    },
+    {
+      "region_id": "municipality-222038",
+      "event_count": 1,
+      "events": {
+        "path": "outputs/municipality-222038/events.csv",
+        "sha256": "97b3aa936199b61078c5b766e6270e8d62f1a040729b7fb5bf27e8ecb6e562bb"
+      },
+      "provenance": {
+        "path": "outputs/municipality-222038/events.provenance.csv",
+        "sha256": "85a8b992fd6a5790cfaa07fffd0a8e7f45f4bf0b62424562f96bc415fd6a3fd9"
+      }
+    },
+    {
+      "region_id": "municipality-222143",
+      "event_count": 1,
+      "events": {
+        "path": "outputs/municipality-222143/events.csv",
+        "sha256": "94d995366ba79e9fb1224909be24b6dbc99ae6517abf3ecc9aa0c183aee455b4"
+      },
+      "provenance": {
+        "path": "outputs/municipality-222143/events.provenance.csv",
+        "sha256": "94274d833e5df983284ad928466099042ac52b998786b10f4bc4f826702fd789"
+      }
+    },
+    {
+      "region_id": "shinshiro",
+      "event_count": 3,
+      "events": {
+        "path": "outputs/shinshiro/events.csv",
+        "sha256": "2a279abf8918b91ef3032c087a36faa969a220d56c90b801d5519870484770ef"
+      },
+      "provenance": {
+        "path": "outputs/shinshiro/events.provenance.csv",
+        "sha256": "07e19bd47d17069c14773e416339d63a731b0dd00f19829a902b3a306c347775"
+      }
+    },
+    {
+      "region_id": "tahara",
+      "event_count": 0,
+      "events": {
+        "path": "outputs/tahara/events.csv",
+        "sha256": "c9c3a3e8010170a0bc414322dc2c7ea54c2357ed82d8629f34be530de4ed8f0b"
+      },
+      "provenance": {
+        "path": "outputs/tahara/events.provenance.csv",
+        "sha256": "40bf4dc6d850729cd1df7660a6ef6cc3e680494cf413b1daf931d31af9ecd037"
+      }
+    },
+    {
+      "region_id": "toyohashi",
+      "event_count": 0,
+      "events": {
+        "path": "outputs/toyohashi/events.csv",
+        "sha256": "c9c3a3e8010170a0bc414322dc2c7ea54c2357ed82d8629f34be530de4ed8f0b"
+      },
+      "provenance": {
+        "path": "outputs/toyohashi/events.provenance.csv",
+        "sha256": "40bf4dc6d850729cd1df7660a6ef6cc3e680494cf413b1daf931d31af9ecd037"
+      }
+    },
+    {
+      "region_id": "toyokawa",
+      "event_count": 13,
+      "events": {
+        "path": "outputs/toyokawa/events.csv",
+        "sha256": "6825b26540005039c6fa036332403741a77633a358806ccc0c8986f331493c70"
+      },
+      "provenance": {
+        "path": "outputs/toyokawa/events.provenance.csv",
+        "sha256": "c71297fabd27ad7026fc812194e8b187d7f069dbfdde70dd630370093fccb8a0"
+      }
+    }
+  ]
+}

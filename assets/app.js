@@ -867,6 +867,68 @@
     return `${text.length}-${(hash >>> 0).toString(16)}`;
   };
 
+  const OUTPUT_MANIFEST_URL = "data/outputs/manifest.json";
+  const OUTPUT_SOURCE_ID_PREFIX = "bundled-event-data";
+
+  const resolveOutputEventUrl = rawPath => {
+    const path = String(rawPath || "").trim();
+    if (!path || !path.toLowerCase().endsWith(".csv") || path.includes("\\")) {
+      return "";
+    }
+    const dataRoot = new URL("data/", document.baseURI);
+    const resolved = new URL(path, dataRoot);
+    if (
+      resolved.origin !== dataRoot.origin ||
+      !resolved.pathname.startsWith(dataRoot.pathname)
+    ) {
+      return "";
+    }
+    return resolved.toString();
+  };
+
+  const registerOutputEventSources = async () => {
+    const response = await fetch(OUTPUT_MANIFEST_URL, { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error(`Event output manifest fetch failed: ${response.status}`);
+    }
+    const manifest = await response.json();
+    if (!Array.isArray(manifest.cities)) {
+      throw new Error("Event output manifest has no cities array");
+    }
+
+    const knownSourceIds = new Set(EVENT_CSV_SOURCES.map(source => source.id));
+    let registeredCount = 0;
+    manifest.cities.forEach(city => {
+      const regionId = String(city && city.region_id || "").trim();
+      const eventUrl = resolveOutputEventUrl(city && city.events && city.events.path);
+      if (!regionId || !eventUrl) {
+        console.warn("Invalid event output manifest entry was skipped.", city);
+        return;
+      }
+
+      let sourceId = `${OUTPUT_SOURCE_ID_PREFIX}-${regionId}`;
+      let suffix = 2;
+      while (knownSourceIds.has(sourceId)) {
+        sourceId = `${OUTPUT_SOURCE_ID_PREFIX}-${regionId}-${suffix}`;
+        suffix += 1;
+      }
+      knownSourceIds.add(sourceId);
+      EVENT_CSV_SOURCES.push({
+        id: sourceId,
+        url: eventUrl,
+        encoding: "utf-8",
+        refresh: true,
+        sourceType: "bundled-event-data",
+        sourceName: `公開用イベントデータ（${regionId}）`,
+        sourceUrl: "",
+        defaultCategory: "未分類",
+        searchKeywords: [regionId],
+      });
+      registeredCount += 1;
+    });
+    return registeredCount;
+  };
+
   const buildFreshCsvUrl = csvUrl => {
     const url = new URL(csvUrl, window.location.href);
     url.searchParams.set("_event_map_refresh", String(Date.now()));
@@ -1247,7 +1309,14 @@
       "";
     normalized["住所"] = normalized["住所"] || normalized["所在地_連結表記"] || "";
     normalized["説明"] = normalized["説明"] || normalized["概要"] || "";
-    normalized["地方公共団体名"] = normalized["地方公共団体名"] || source.areaName || "";
+    const municipalityName = [normalized["都道府県名"], normalized["市区町村名"]]
+      .map(value => String(value || "").trim())
+      .filter(Boolean)
+      .join("");
+    normalized["地方公共団体名"] = normalized["地方公共団体名"] ||
+      municipalityName ||
+      source.areaName ||
+      "";
     normalized._sourceId = source.id || "";
     normalized._sourceType = source.sourceType || "open-data";
     normalized._sourceName = source.sourceName || "";
@@ -1518,6 +1587,13 @@
       dateRangeHint.textContent = "データを読み込み中...";
     }
     setLoading(true);
+    let outputManifestLoadFailed = false;
+    try {
+      await registerOutputEventSources();
+    } catch (error) {
+      outputManifestLoadFailed = true;
+      console.warn("Bundled event output manifest could not be loaded.", error);
+    }
 
     const map = L.map("map", {
       zoomControl: false,
@@ -3025,9 +3101,9 @@
       setLoading(false);
     }
 
-    if (initialLoadResult.failedSources.length > 0) {
+    if (outputManifestLoadFailed || initialLoadResult.failedSources.length > 0) {
       setDataRefreshStatus(
-        "表示範囲の一部データを取得できませんでした。読み込めた情報を表示しています。",
+        "一部のイベント情報を取得できませんでした。読み込めた情報を表示しています。",
         "warning"
       );
     } else {
@@ -3041,6 +3117,13 @@
           announce: false,
         });
         if (freshResult.stale) return;
+        if (outputManifestLoadFailed) {
+          setDataRefreshStatus(
+            "追加イベントの一覧を取得できませんでした。読み込めた情報を表示しています。",
+            "warning"
+          );
+          return;
+        }
         if (freshResult.failedSources.length > 0) {
           setDataRefreshStatus(
             "表示範囲の一部データと通信できないため、取得済みの情報を表示しています。",

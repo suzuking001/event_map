@@ -1,4 +1,4 @@
-const STATIC_CACHE = "static-v42";
+const STATIC_CACHE = "static-v43";
 const RUNTIME_CACHE = "runtime-v8";
 const DATA_CACHE = "data-v8";
 // Keep the tile cache stable across app releases so repeat map views stay fast.
@@ -13,7 +13,7 @@ const STATIC_ASSETS = [
   "correction-request.html",
   "assets/policy.css?v=1",
   "assets/styles.css?v=20",
-  "assets/app.js?v=38",
+  "assets/app.js?v=39",
   "assets/js/config.js?v=18",
   "assets/js/csv.js",
   "assets/js/utils.js",
@@ -63,6 +63,11 @@ self.addEventListener("activate", event => {
 const isCsvRequest = url => {
   const parsedUrl = new URL(url);
   return parsedUrl.pathname.toLowerCase().endsWith(".csv");
+};
+
+const isEventManifestRequest = url => {
+  const parsedUrl = new URL(url);
+  return parsedUrl.pathname.toLowerCase().endsWith("/data/outputs/manifest.json");
 };
 
 const isOsmTileRequest = url =>
@@ -129,6 +134,11 @@ self.addEventListener("fetch", event => {
     } else {
       event.respondWith(cacheFirst(request, DATA_CACHE));
     }
+    return;
+  }
+
+  if (isEventManifestRequest(url)) {
+    event.respondWith(networkFirst(request, DATA_CACHE));
     return;
   }
 
