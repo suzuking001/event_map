@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#ff5a36">
+  <meta name="theme-color" content="#f7f6f3">
   <meta name="description" content="浜松を中心に、大阪・鳥取・岡崎・会津若松・川崎のイベントも日付・カテゴリ・地図から探せるイベントマップです。">
   <meta property="og:type" content="website">
   <meta property="og:locale" content="ja_JP">
@@ -34,7 +34,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/icon-32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="assets/icons/icon-16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="assets/icons/apple-touch-icon.png">
-  <meta name="msapplication-TileColor" content="#ff5a36">
+  <meta name="msapplication-TileColor" content="#f7f6f3">
   <meta name="msapplication-config" content="browserconfig.xml">
   <title>浜松、今日は何する？｜浜松市 イベントマップ</title>
   <link
@@ -43,7 +43,7 @@
     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
     crossorigin=""
   />
-  <link rel="stylesheet" href="assets/styles.css?v=20" />
+  <link rel="stylesheet" href="assets/styles.css?v=23" />
 </head>
 <body>
   <button id="menu-toggle" class="menu-toggle" aria-label="メニューを開く" aria-expanded="true" aria-controls="side-menu">
@@ -56,16 +56,20 @@
       <div class="brand-lockup">
         <img class="brand-mascot" src="assets/icons/icon-192.png" width="58" height="58" alt="">
         <div>
-          <span class="brand-eyebrow">HAMAMATSU WEEKEND MAP</span>
+          <span class="brand-eyebrow">LOCAL VIBES, RIGHT NOW.</span>
           <div class="menu-header">浜松、今日は何する？</div>
+          <div class="brand-mood" aria-label="浜松のイベントをライブで発見">
+            <span class="brand-live"><i aria-hidden="true"></i> LIVE PICKS</span>
+            <span>#浜松で遊ぶ</span>
+          </div>
         </div>
       </div>
       <button id="menu-close" class="menu-close" type="button" aria-label="メニューを閉じる">×</button>
     </div>
-    <p class="menu-intro">浜松を中心に、全国のオープンデータからイベントを発見。</p>
+    <p class="menu-intro">今日の気分から、次の“行きたい”へ。街のいまをスワイプするように探そう。</p>
     <section class="date-filter" aria-labelledby="date-filter-title">
       <div class="date-filter-heading">
-        <h2 id="date-filter-title">いつ行きますか？</h2>
+        <h2 id="date-filter-title">いつ遊ぶ？</h2>
         <button id="date-clear" class="date-clear-button" type="button">クリア</button>
       </div>
       <button
@@ -91,10 +95,13 @@
       <div id="date-info" class="date-filter-summary">期間を選択すると表示されます</div>
       <div id="date-range-hint" class="date-range-hint"></div>
     </section>
-    <label class="menu-label" for="search-input">キーワード検索</label>
-    <input id="search-input" class="menu-input" type="text" placeholder="例: 大阪, 岡崎, 会津, 川崎">
+    <label class="menu-label" for="search-input">どんな気分？</label>
+    <div class="search-field">
+      <span class="search-field-icon" aria-hidden="true">⌕</span>
+      <input id="search-input" class="menu-input" type="text" placeholder="花火、ライブ、ワークショップ…">
+    </div>
     <div class="menu-section">
-      <div class="menu-subtitle">カテゴリ <span>（地図表示件数）</span></div>
+      <div class="menu-subtitle">気分で選ぶ <span>（地図表示件数）</span></div>
       <div id="category-filters"></div>
       <div class="menu-actions category-actions">
         <button id="category-all" class="menu-button" type="button">すべて選択</button>
@@ -110,7 +117,7 @@
       </div>
     </div>
     <button id="share-map" class="share-map-button" type="button">
-      <span aria-hidden="true">↗</span> この条件をシェア
+      <span aria-hidden="true">↗</span> この予定をみんなにシェア
     </button>
     <div id="data-refresh-status" class="menu-hint data-refresh-status" role="status" aria-live="polite">
       イベント情報を確認しています...
@@ -183,7 +190,7 @@
   <div id="map"></div>
   <div id="floating-result" class="floating-result" aria-live="polite">
     <img src="assets/icons/icon-32.png" width="28" height="28" alt="">
-    <span><strong id="floating-visible-count">0</strong>件 見つかりました</span>
+    <span><strong id="floating-visible-count">0</strong>件の予定を発見</span>
   </div>
   <div id="share-toast" class="share-toast" role="status" aria-live="polite" aria-hidden="true"></div>
   <div id="share-sheet" class="share-sheet" role="dialog" aria-modal="true" aria-labelledby="share-sheet-title" aria-hidden="true" inert>
